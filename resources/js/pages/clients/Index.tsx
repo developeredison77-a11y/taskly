@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 
 export default function ClientsIndex() {
     const { t } = useTranslation();
-    const { clients, filters: pageFilters = {}, flash, permissions: pagePermissions } = usePage().props as any;
+    const { clients, filters: pageFilters = {}, flash, permissions: pagePermissions, errors } = usePage().props as any;
 
     const [searchTerm, setSearchTerm] = useState(pageFilters.search || '');
     const [selectedStatus, setSelectedStatus] = useState(pageFilters.status || 'all');
@@ -84,9 +84,10 @@ export default function ClientsIndex() {
                     toast.dismiss();
                     setIsFormModalOpen(false);
                 },
-                onError: () => {
+                onError: (validationErrors: Record<string, string>) => {
                     toast.dismiss();
-                    toast.error(t('Failed to create client'));
+                    const firstError = validationErrors?.phone || Object.values(validationErrors || {})[0];
+                    toast.error(firstError || t('Failed to create client'));
                 }
             });
             return;
@@ -98,9 +99,10 @@ export default function ClientsIndex() {
                 toast.dismiss();
                 setIsFormModalOpen(false);
             },
-            onError: () => {
+            onError: (validationErrors: Record<string, string>) => {
                 toast.dismiss();
-                toast.error(t('Failed to update client'));
+                const firstError = validationErrors?.phone || Object.values(validationErrors || {})[0];
+                toast.error(firstError || t('Failed to update client'));
             }
         });
     };
@@ -298,6 +300,7 @@ export default function ClientsIndex() {
                 isOpen={isFormModalOpen}
                 onClose={() => setIsFormModalOpen(false)}
                 onSubmit={handleFormSubmit}
+                externalErrors={errors}
                 submitButtonText={formMode === 'create' ? t('Create Client') : t('Update Client')}
                 title={formMode === 'create' ? t('Add Client') : t('Edit Client')}
                 mode={formMode}
@@ -306,7 +309,32 @@ export default function ClientsIndex() {
                     fields: [
                         { name: 'name', label: t('Name'), type: 'text', required: true },
                         { name: 'email', label: t('Email'), type: 'email', required: true },
-                        { name: 'phone', label: t('Phone'), type: 'text', required: true },
+                        {
+                            name: 'phone',
+                            label: t('Phone'),
+                            type: 'text',
+                            required: true,
+                            render: (field: any, formData: any, handleChange: any) => (
+                                <Input
+                                    id={field.name}
+                                    name={field.name}
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    placeholder={t('Phone')}
+                                    value={formData[field.name] || ''}
+                                    onKeyDown={(e) => {
+                                        if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                                            e.preventDefault();
+                                        }
+                                    }}
+                                    onChange={(e) => {
+                                        const digitsOnly = e.target.value.replace(/\D/g, '');
+                                        handleChange(field.name, digitsOnly);
+                                    }}
+                                />
+                            )
+                        },
                         {
                             name: 'status',
                             label: t('Status'),
