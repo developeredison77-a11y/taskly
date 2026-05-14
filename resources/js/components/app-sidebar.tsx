@@ -89,6 +89,15 @@ export function AppSidebar() {
             });
         }
 
+        // Clients
+        if (hasPermission(permissions, 'client_management_view_any')) {
+            items.push({
+                title: t('Clients'),
+                href: route('clients.index'),
+                icon: Users,
+            });
+        }
+
         // Workspaces
         if (hasPermission(permissions, 'workspace_view_any')) {
             items.push({

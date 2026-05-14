@@ -664,6 +664,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('contacts/bulk-delete', [\App\Http\Controllers\ContactController::class, 'bulkDelete'])->middleware('permission:contact_bulk_operations')->name('contacts.bulk-delete');
         Route::get('contacts/export', [\App\Http\Controllers\ContactController::class, 'export'])->middleware('permission:contact_export')->name('contacts.export');
 
+        // Client management routes
+        Route::get('clients', [\App\Http\Controllers\ClientController::class, 'index'])->middleware('permission:client_management_view_any')->name('clients.index');
+        Route::post('clients', [\App\Http\Controllers\ClientController::class, 'store'])->middleware('permission:client_management_create')->name('clients.store');
+        Route::put('clients/{client}', [\App\Http\Controllers\ClientController::class, 'update'])->middleware('permission:client_management_update')->name('clients.update');
+        Route::delete('clients/{client}', [\App\Http\Controllers\ClientController::class, 'destroy'])->middleware('permission:client_management_delete')->name('clients.destroy');
+        Route::put('clients/{client}/toggle-status', [\App\Http\Controllers\ClientController::class, 'toggleStatus'])->middleware('permission:client_management_update')->name('clients.toggle-status');
+
 
         // Referral routes
         Route::middleware('permission:referral_view_any')->group(function () {

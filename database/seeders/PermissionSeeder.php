@@ -321,6 +321,13 @@ class PermissionSeeder extends Seeder
             ['name' => 'contact_bulk_operations', 'module' => 'contact', 'label' => 'Contact Bulk Operations', 'description' => 'Perform bulk operations on contacts'],
             ['name' => 'contact_export', 'module' => 'contact', 'label' => 'Export Contact', 'description' => 'Export contact data'],
 
+            // Client Management Module
+            ['name' => 'client_management_view_any', 'module' => 'client_management', 'label' => 'View All Clients', 'description' => 'View all clients in workspace'],
+            ['name' => 'client_management_view', 'module' => 'client_management', 'label' => 'View Client', 'description' => 'View individual client'],
+            ['name' => 'client_management_create', 'module' => 'client_management', 'label' => 'Create Client', 'description' => 'Create new client'],
+            ['name' => 'client_management_update', 'module' => 'client_management', 'label' => 'Update Client', 'description' => 'Modify client information'],
+            ['name' => 'client_management_delete', 'module' => 'client_management', 'label' => 'Delete Client', 'description' => 'Remove client'],
+
             // Settings Module
             ['name' => 'settings_view', 'module' => 'settings', 'label' => 'View Settings', 'description' => 'Access settings panel'],
             ['name' => 'settings_update', 'module' => 'settings', 'label' => 'Update Settings', 'description' => 'Modify basic settings'],

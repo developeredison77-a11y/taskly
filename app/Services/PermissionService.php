@@ -152,6 +152,7 @@ class PermissionService
             'email_template' => 'Email Templates',
             'webhook' => 'Webhooks',
             'language' => 'Language Management',
+            'client_management' => 'Client Management',
             'business' => 'Business Management',
             'settings' => 'System Settings',
         ];

@@ -33,6 +33,7 @@ class RoleSeeder extends Seeder
                 'custom_page',
                 'newsletter',
                 'contact',
+                'client_management',
                 'language',
                 'media',
                 'email_template',
@@ -85,6 +86,7 @@ class RoleSeeder extends Seeder
                 'project_report',
                 'project_permissions',
                 'todos',
+                'client_management',
 
             ])->get();
 
@@ -168,6 +170,7 @@ class RoleSeeder extends Seeder
                 'google_meeting',
                 'project_permissions',
                 'todos',
+                'client_management',
             ])->get();
         }
 
