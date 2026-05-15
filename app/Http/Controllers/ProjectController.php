@@ -372,12 +372,10 @@ class ProjectController extends Controller
                 ->where('role', 'manager');
         })->get();
 
-        // Get clients (users with client role in workspace)
+        // Get active clients from clients table for project assignment popup
         $clients = User::whereHas('workspaces', function ($q) use ($workspace) {
-            $q->where('workspace_id', $workspace->id)
-                ->where('status', 'active')
-                ->where('role', 'client');
-        })->get();
+            $q->where('workspace_id', $workspace->id)->where('status', 'active')->where('role', 'client');
+        })->get(); 
 
         return Inertia::render('projects/Show', [
             'project' => $project,
@@ -615,6 +613,10 @@ class ProjectController extends Controller
             ['project_id' => $project->id, 'user_id' => $validated['user_id']],
             ['assigned_by' => auth()->id()]
         );
+        ProjectMember::updateOrCreate(
+            ['project_id' => $project->id, 'user_id' => $validated['user_id']],
+            ['role' => 'client', 'assigned_by' => auth()->id()]
+        );
 
         $user = User::find($validated['user_id']);
         $project->logActivity('client_assigned', "Client '{$user->name}' was assigned to project");
@@ -635,6 +637,10 @@ class ProjectController extends Controller
         \App\Models\ProjectClient::where('project_id', $project->id)
             ->where('user_id', $user->id)
             ->delete();
+        ProjectMember::where('project_id', $project->id)
+            ->where('user_id', $user->id)
+            ->where('role', 'client')
+            ->delete();
 
         $project->logActivity('client_removed', "Client '{$user->name}' was removed from project");
 
@@ -652,14 +658,53 @@ class ProjectController extends Controller
             abort(403, 'Project not found in current workspace.');
         }
         $validated = $request->validate([
-            'client_ids' => 'required|array',
-            'client_ids.*' => 'exists:users,id'
+            'client_ids' => 'nullable|array',
+            'client_ids.*' => 'exists:users,id',
+            'client_record_id' => 'nullable|exists:clients,id'
         ]);
 
-        foreach ($validated['client_ids'] as $clientId) {
+        if (empty($validated['client_ids']) && empty($validated['client_record_id'])) {
+            return back()->withErrors(['client_id' => 'Please select a client.']);
+        }
+
+        $clientUserIds = $validated['client_ids'] ?? [];
+
+        if (!empty($validated['client_record_id'])) {
+            $clientRecord = Client::query()
+                ->where('workspace_id', $workspace->id)
+                ->where('status', 'active')
+                ->find($validated['client_record_id']);
+
+            if (!$clientRecord) {
+                return back()->withErrors(['client_id' => 'Selected client is not available.']);
+            }
+
+            $clientUser = User::query()
+                ->where('email', $clientRecord->email)
+                ->whereHas('workspaces', function ($q) use ($workspace) {
+                    $q->where('workspace_id', $workspace->id)->where('status', 'active');
+                })
+                ->first();
+
+            if (!$clientUser) {
+                return back()->withErrors(['client_id' => 'No workspace user exists for this client email.']);
+            }
+
+            $clientUserIds[] = $clientUser->id;
+        }
+
+        $clientUserIds = array_values(array_unique($clientUserIds));
+
+        foreach ($clientUserIds as $clientId) {
             \App\Models\ProjectClient::updateOrCreate(
                 ['project_id' => $project->id, 'user_id' => $clientId],
                 ['assigned_by' => auth()->id()]
+            );
+
+            // Keep clients in project_members as role=client for unified membership handling
+            ProjectMember::updateOrCreate(
+                ['project_id' => $project->id, 'user_id' => $clientId],
+                ['role' => 'client', 'assigned_by' => auth()->id()]
             );
 
             // Fire event for email notification
@@ -670,7 +715,7 @@ class ProjectController extends Controller
             }
         }
 
-        $clientNames = User::whereIn('id', $validated['client_ids'])->pluck('name')->toArray();
+        $clientNames = User::whereIn('id', $clientUserIds)->pluck('name')->toArray();
         $project->logActivity('clients_assigned', "Clients '" . implode(', ', $clientNames) . "' were assigned to project");
 
         return back();

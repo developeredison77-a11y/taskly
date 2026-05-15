@@ -2,17 +2,25 @@
 
 namespace App\Services;
 
-use App\Models\Client;
+use App\Models\User;
+use App\Models\Workspace;
+use App\Models\WorkspaceMember;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class ClientService
 {
     public function getPaginatedForWorkspace(int $workspaceId, Request $request): LengthAwarePaginator
     {
-        $query = Client::query()
-            ->where('workspace_id', $workspaceId)
-            ->with('creator');
+        $query = User::query()
+            ->where('type', 'client')
+            ->with(['workspaces:id,name'])
+            ->whereHas('workspaces', function ($q) use ($workspaceId) {
+                $q->where('workspace_id', $workspaceId)
+                    ->where('role', 'client');
+            });
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -24,7 +32,11 @@ class ClientService
         }
 
         if ($request->filled('status') && in_array($request->status, ['active', 'inactive'])) {
-            $query->where('status', $request->status);
+            $query->whereHas('workspaces', function ($q) use ($workspaceId, $request) {
+                $q->where('workspace_id', $workspaceId)
+                    ->where('role', 'client')
+                    ->where('status', $request->status);
+            });
         }
 
         $allowedSortFields = ['name', 'email', 'phone', 'status', 'created_at'];
@@ -45,30 +57,93 @@ class ClientService
         return $query->paginate($perPage)->withQueryString();
     }
 
-    public function create(array $data, int $workspaceId, int $userId): Client
+    public function create(array $data, int $userId): User
     {
-        return Client::create([
+        $workspaceIds = $data['workspace_ids'] ?? [];
+        unset($data['workspace_ids']);
+
+        $client = User::create([
             ...$data,
-            'workspace_id' => $workspaceId,
+            'password' => Hash::make(Str::random(16)),
+            'type' => 'client',
             'created_by' => $userId,
         ]);
+
+        foreach ($workspaceIds as $workspaceId) {
+            WorkspaceMember::updateOrCreate(
+                ['workspace_id' => $workspaceId, 'user_id' => $client->id],
+                [
+                'role' => 'client',
+                'status' => $data['status'] ?? 'active',
+                'joined_at' => now(),
+                ]
+            );
+        }
+
+        return $client;
     }
 
-    public function update(Client $client, array $data): void
+    public function update(User $client, array $data): void
     {
+        $workspaceIds = $data['workspace_ids'] ?? [];
+        unset($data['workspace_ids']);
+
+        $data['type'] = 'client';
         $client->update($data);
+
+        WorkspaceMember::where('user_id', $client->id)
+            ->where('role', 'client')
+            ->whereNotIn('workspace_id', $workspaceIds)
+            ->delete();
+
+        foreach ($workspaceIds as $workspaceId) {
+            WorkspaceMember::updateOrCreate(
+                ['workspace_id' => $workspaceId, 'user_id' => $client->id],
+                [
+                    'role' => 'client',
+                    'status' => $data['status'] ?? 'active',
+                    'joined_at' => now(),
+                ]
+            );
+        }
     }
 
-    public function delete(Client $client): void
+    public function delete(User $client): void
     {
         $client->delete();
     }
 
-    public function toggleStatus(Client $client): void
+    public function toggleStatus(User $client): void
     {
-        $client->update([
-            'status' => $client->status === 'active' ? 'inactive' : 'active',
-        ]);
+        $workspaceStatus = WorkspaceMember::where('user_id', $client->id)
+            ->where('role', 'client')
+            ->where('status', 'active')
+            ->exists() ? 'inactive' : 'active';
+
+        WorkspaceMember::where('user_id', $client->id)
+            ->where('role', 'client')
+            ->update(['status' => $workspaceStatus]);
+
+        $client->status = $workspaceStatus;
+        $client->save();
+    }
+
+    public function getAssignableWorkspacesForUser(User $authUser): array
+    {
+        return Workspace::query()
+            ->where(function ($query) use ($authUser) {
+                $query->where('owner_id', $authUser->id)
+                    ->orWhereHas('members', function ($q) use ($authUser) {
+                        $q->where('user_id', $authUser->id)
+                            ->where('status', 'active');
+                    });
+            })
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn ($workspace) => [
+                'id' => $workspace->id,
+                'name' => $workspace->name,
+            ])
+            ->toArray();
     }
 }
-

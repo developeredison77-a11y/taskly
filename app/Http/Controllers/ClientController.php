@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
-use App\Models\Client;
+use App\Models\User;
 use App\Services\ClientService;
 use App\Traits\HasPermissionChecks;
 use Illuminate\Http\Request;
@@ -23,12 +23,15 @@ class ClientController extends Controller
     {
         $this->authorizePermission('client_management_view_any');
 
-        $workspaceId = auth()->user()->current_workspace_id;
+        $user = auth()->user();
+        $workspaceId = $user->current_workspace_id;
 
         $clients = $this->clientService->getPaginatedForWorkspace($workspaceId, $request);
+        $workspaces = $this->clientService->getAssignableWorkspacesForUser($user);
 
         return Inertia::render('clients/Index', [
             'clients' => $clients,
+            'workspaces' => $workspaces,
             'filters' => $request->only(['search', 'status', 'sort_field', 'sort_direction', 'per_page']),
             'permissions' => [
                 'create' => $this->checkPermission('client_management_create'),
@@ -42,13 +45,12 @@ class ClientController extends Controller
     {
         $this->authorizePermission('client_management_create');
 
-        $workspaceId = auth()->user()->current_workspace_id;
-        $this->clientService->create($request->validated(), $workspaceId, auth()->id());
+        $this->clientService->create($request->validated(), auth()->id());
 
         return redirect()->back()->with('success', __('Client created successfully.'));
     }
 
-    public function update(UpdateClientRequest $request, Client $client)
+    public function update(UpdateClientRequest $request, User $client)
     {
         $this->authorizePermission('client_management_update');
         $this->ensureWorkspaceAccess($client);
@@ -58,7 +60,7 @@ class ClientController extends Controller
         return redirect()->back()->with('success', __('Client updated successfully.'));
     }
 
-    public function destroy(Client $client)
+    public function destroy(User $client)
     {
         $this->authorizePermission('client_management_delete');
         $this->ensureWorkspaceAccess($client);
@@ -68,7 +70,7 @@ class ClientController extends Controller
         return redirect()->back()->with('success', __('Client deleted successfully.'));
     }
 
-    public function toggleStatus(Client $client)
+    public function toggleStatus(User $client)
     {
         $this->authorizePermission('client_management_update');
         $this->ensureWorkspaceAccess($client);
@@ -78,11 +80,20 @@ class ClientController extends Controller
         return redirect()->back()->with('success', __('Client status updated successfully.'));
     }
 
-    private function ensureWorkspaceAccess(Client $client): void
+    private function ensureWorkspaceAccess(User $client): void
     {
-        if ((int) $client->workspace_id !== (int) auth()->user()->current_workspace_id) {
+        $workspaceId = auth()->user()->current_workspace_id;
+        if (!$workspaceId) {
+            abort(403, 'Unauthorized');
+        }
+
+        $hasAccess = $client->workspaces()
+            ->where('workspace_id', $workspaceId)
+            ->wherePivot('role', 'client')
+            ->exists();
+
+        if (!$hasAccess) {
             abort(403, 'Unauthorized');
         }
     }
 }
-

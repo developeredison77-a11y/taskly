@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 
 export default function ClientsIndex() {
     const { t } = useTranslation();
-    const { clients, filters: pageFilters = {}, flash, permissions: pagePermissions, errors } = usePage().props as any;
+    const { clients, workspaces = [], filters: pageFilters = {}, flash, permissions: pagePermissions, errors } = usePage().props as any;
 
     const [searchTerm, setSearchTerm] = useState(pageFilters.search || '');
     const [selectedStatus, setSelectedStatus] = useState(pageFilters.status || 'all');
@@ -65,7 +65,10 @@ export default function ClientsIndex() {
     };
 
     const handleAction = (action: string, item: any) => {
-        setCurrentClient(item);
+        setCurrentClient({
+            ...item,
+            workspace_ids: (item.workspaces || []).map((workspace: any) => String(workspace.id))
+        });
         if (action === 'edit') {
             setFormMode('edit');
             setIsFormModalOpen(true);
@@ -309,6 +312,16 @@ export default function ClientsIndex() {
                     fields: [
                         { name: 'name', label: t('Name'), type: 'text', required: true },
                         { name: 'email', label: t('Email'), type: 'email', required: true },
+                        {
+                            name: 'workspace_ids',
+                            label: t('Workspaces'),
+                            type: 'multi-select',
+                            required: true,
+                            options: workspaces.map((workspace: any) => ({
+                                label: workspace.name,
+                                value: String(workspace.id),
+                            })),
+                        },
                         {
                             name: 'phone',
                             label: t('Phone'),
