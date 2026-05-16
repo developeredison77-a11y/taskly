@@ -35,6 +35,7 @@ interface CrudFormModalProps {
   mode: 'create' | 'edit' | 'view';
   description?: string;
   submitButtonText?: string;
+  externalErrors?: Record<string, string | string[]>;
 }
 
 export function CrudFormModal({
@@ -46,7 +47,8 @@ export function CrudFormModal({
   title,
   mode,
   description,
-  submitButtonText
+  submitButtonText,
+  externalErrors
 }: CrudFormModalProps) {
   const { t } = useTranslation();
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -106,6 +108,21 @@ export function CrudFormModal({
       });
     }
   }, [isOpen, initialData, formConfig.fields, mode]);
+
+  useEffect(() => {
+    if (!isOpen || !externalErrors) {
+      return;
+    }
+
+    const normalizedErrors: Record<string, string> = {};
+    Object.entries(externalErrors).forEach(([key, value]) => {
+      normalizedErrors[key] = Array.isArray(value) ? value[0] : value;
+    });
+
+    if (Object.keys(normalizedErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...normalizedErrors }));
+    }
+  }, [externalErrors, isOpen]);
   
   const handleChange = (name: string, value: any) => {
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -151,6 +168,14 @@ export function CrudFormModal({
       
       if (field.required && isConditionallyRequired && !formData[field.name]) {
         newErrors[field.name] = `${field.label} is required`;
+      }
+
+      if (field.type === 'email' && formData[field.name]) {
+        const emailValue = String(formData[field.name]).trim();
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(emailValue)) {
+          newErrors[field.name] = `${field.label} must be a valid email address`;
+        }
       }
       
       // File validation

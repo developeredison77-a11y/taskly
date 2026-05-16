@@ -2,7 +2,8 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequeuse Illuminate\Validation\Rule;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreMemberRequest extends FormRequest
 {
@@ -38,8 +39,5 @@ class StoreMemberRequest extends FormRequest
                 'email' => strtolower(trim((string) $this->input('email'))),
             ]);
         }
-spaces,id',
-        ];
     }
 }
-

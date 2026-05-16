@@ -89,7 +89,7 @@ export default function MembersIndex() {
                 },
                 onError: (validationErrors: Record<string, string>) => {
                     toast.dismiss();
-                    const firstError = validationErrors?.phone || Object.values(validationErrors || {})[0];
+                    const firstError = Object.values(validationErrors || {})[0];
                     toast.error(firstError || t('Failed to create member'));
                 }
             });
@@ -104,7 +104,7 @@ export default function MembersIndex() {
             },
             onError: (validationErrors: Record<string, string>) => {
                 toast.dismiss();
-                const firstError = validationErrors?.phone || Object.values(validationErrors || {})[0];
+                const firstError = Object.values(validationErrors || {})[0];
                 toast.error(firstError || t('Failed to update member'));
             }
         });
