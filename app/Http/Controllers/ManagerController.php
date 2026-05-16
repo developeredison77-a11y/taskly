@@ -23,10 +23,10 @@ class ManagerController extends Controller
     {
         $this->authorizePermission('manager_management_view_any');
 
-        $user = auth()->user();
-        $workspaceId = $user->current_workspace_id;
+        $workspaceId = auth()->user()->current_workspace_id;
 
         $managers = $this->managerService->getPaginatedForWorkspace($workspaceId, $request);
+        $user = auth()->user();
         $workspaces = $this->managerService->getAssignableWorkspacesForUser($user);
 
         return Inertia::render('managers/Index', [
@@ -97,4 +97,3 @@ class ManagerController extends Controller
         }
     }
 }
-

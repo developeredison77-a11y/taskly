@@ -23,10 +23,10 @@ class ClientController extends Controller
     {
         $this->authorizePermission('client_management_view_any');
 
-        $user = auth()->user();
-        $workspaceId = $user->current_workspace_id;
+        $workspaceId = auth()->user()->current_workspace_id;
 
         $clients = $this->clientService->getPaginatedForWorkspace($workspaceId, $request);
+        $user = auth()->user();
         $workspaces = $this->clientService->getAssignableWorkspacesForUser($user);
 
         return Inertia::render('clients/Index', [

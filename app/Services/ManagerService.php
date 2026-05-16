@@ -12,8 +12,13 @@ use Illuminate\Support\Str;
 
 class ManagerService
 {
-    public function getPaginatedForWorkspace(int $workspaceId, Request $request): LengthAwarePaginator
+    public function getPaginatedForWorkspace(?int $workspaceId, Request $request): LengthAwarePaginator
     {
+        $perPage = in_array((int) $request->get('per_page', 10), [10, 25, 50, 100]) ? (int) $request->get('per_page', 10) : 10;
+        if (!$workspaceId) {
+            return User::query()->whereRaw('1 = 0')->paginate($perPage)->withQueryString();
+        }
+
         $query = User::query()
             ->where('type', 'manager')
             ->with(['workspaces:id,name'])
@@ -51,8 +56,6 @@ class ManagerService
         }
 
         $query->orderBy($sortField, $sortDirection);
-
-        $perPage = in_array((int) $request->get('per_page', 10), [10, 25, 50, 100]) ? (int) $request->get('per_page', 10) : 10;
 
         return $query->paginate($perPage)->withQueryString();
     }
@@ -147,4 +150,3 @@ class ManagerService
             ->toArray();
     }
 }
-

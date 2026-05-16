@@ -23,10 +23,10 @@ class MemberController extends Controller
     {
         $this->authorizePermission('member_management_view_any');
 
-        $user = auth()->user();
-        $workspaceId = $user->current_workspace_id;
+        $workspaceId = auth()->user()->current_workspace_id;
 
         $members = $this->memberService->getPaginatedForWorkspace($workspaceId, $request);
+        $user = auth()->user();
         $workspaces = $this->memberService->getAssignableWorkspacesForUser($user);
 
         return Inertia::render('members/Index', [
@@ -97,4 +97,3 @@ class MemberController extends Controller
         }
     }
 }
-
