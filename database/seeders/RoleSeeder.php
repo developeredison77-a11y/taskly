@@ -34,6 +34,8 @@ class RoleSeeder extends Seeder
                 'newsletter',
                 'contact',
                 'client_management',
+                'manager_management',
+                'member_management',
                 'language',
                 'media',
                 'email_template',
@@ -87,6 +89,8 @@ class RoleSeeder extends Seeder
                 'project_permissions',
                 'todos',
                 'client_management',
+                'manager_management',
+                'member_management',
 
             ])->get();
 
@@ -171,6 +175,8 @@ class RoleSeeder extends Seeder
                 'project_permissions',
                 'todos',
                 'client_management',
+                'manager_management',
+                'member_management',
             ])->get();
         }
 

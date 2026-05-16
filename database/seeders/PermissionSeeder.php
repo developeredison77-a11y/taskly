@@ -328,6 +328,20 @@ class PermissionSeeder extends Seeder
             ['name' => 'client_management_update', 'module' => 'client_management', 'label' => 'Update Client', 'description' => 'Modify client information'],
             ['name' => 'client_management_delete', 'module' => 'client_management', 'label' => 'Delete Client', 'description' => 'Remove client'],
 
+            // Manager Management Module
+            ['name' => 'manager_management_view_any', 'module' => 'manager_management', 'label' => 'View All Managers', 'description' => 'View all managers in workspace'],
+            ['name' => 'manager_management_view', 'module' => 'manager_management', 'label' => 'View Manager', 'description' => 'View individual manager'],
+            ['name' => 'manager_management_create', 'module' => 'manager_management', 'label' => 'Create Manager', 'description' => 'Create new manager'],
+            ['name' => 'manager_management_update', 'module' => 'manager_management', 'label' => 'Update Manager', 'description' => 'Modify manager information'],
+            ['name' => 'manager_management_delete', 'module' => 'manager_management', 'label' => 'Delete Manager', 'description' => 'Remove manager'],
+
+            // Member Management Module
+            ['name' => 'member_management_view_any', 'module' => 'member_management', 'label' => 'View All Members', 'description' => 'View all members in workspace'],
+            ['name' => 'member_management_view', 'module' => 'member_management', 'label' => 'View Member', 'description' => 'View individual member'],
+            ['name' => 'member_management_create', 'module' => 'member_management', 'label' => 'Create Member', 'description' => 'Create new member'],
+            ['name' => 'member_management_update', 'module' => 'member_management', 'label' => 'Update Member', 'description' => 'Modify member information'],
+            ['name' => 'member_management_delete', 'module' => 'member_management', 'label' => 'Delete Member', 'description' => 'Remove member'],
+
             // Settings Module
             ['name' => 'settings_view', 'module' => 'settings', 'label' => 'View Settings', 'description' => 'Access settings panel'],
             ['name' => 'settings_update', 'module' => 'settings', 'label' => 'Update Settings', 'description' => 'Modify basic settings'],

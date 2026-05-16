@@ -10,16 +10,16 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-class ClientService
+class MemberService
 {
     public function getPaginatedForWorkspace(int $workspaceId, Request $request): LengthAwarePaginator
     {
         $query = User::query()
-            ->where('type', 'client')
+            ->where('type', 'member')
             ->with(['workspaces:id,name'])
             ->whereHas('workspaces', function ($q) use ($workspaceId) {
                 $q->where('workspace_id', $workspaceId)
-                    ->where('role', 'client');
+                    ->where('role', 'member');
             });
 
         if ($request->filled('search')) {
@@ -34,7 +34,7 @@ class ClientService
         if ($request->filled('status') && in_array($request->status, ['active', 'inactive'])) {
             $query->whereHas('workspaces', function ($q) use ($workspaceId, $request) {
                 $q->where('workspace_id', $workspaceId)
-                    ->where('role', 'client')
+                    ->where('role', 'member')
                     ->where('status', $request->status);
             });
         }
@@ -62,45 +62,45 @@ class ClientService
         $workspaceIds = $data['workspace_ids'] ?? [];
         unset($data['workspace_ids']);
 
-        $client = User::create([
+        $member = User::create([
             ...$data,
             'password' => Hash::make('password'),
-            'type' => 'client',
+            'type' => 'member',
             'created_by' => $userId,
         ]);
 
         foreach ($workspaceIds as $workspaceId) {
             WorkspaceMember::updateOrCreate(
-                ['workspace_id' => $workspaceId, 'user_id' => $client->id],
+                ['workspace_id' => $workspaceId, 'user_id' => $member->id],
                 [
-                'role' => 'client',
+                'role' => 'member',
                 'status' => $data['status'] ?? 'active',
                 'joined_at' => now(),
                 ]
             );
         }
 
-        return $client;
+        return $member;
     }
 
-    public function update(User $client, array $data): void
+    public function update(User $member, array $data): void
     {
         $workspaceIds = $data['workspace_ids'] ?? [];
         unset($data['workspace_ids']);
 
-        $data['type'] = 'client';
-        $client->update($data);
+        $data['type'] = 'member';
+        $member->update($data);
 
-        WorkspaceMember::where('user_id', $client->id)
-            ->where('role', 'client')
+        WorkspaceMember::where('user_id', $member->id)
+            ->where('role', 'member')
             ->whereNotIn('workspace_id', $workspaceIds)
             ->delete();
 
         foreach ($workspaceIds as $workspaceId) {
             WorkspaceMember::updateOrCreate(
-                ['workspace_id' => $workspaceId, 'user_id' => $client->id],
+                ['workspace_id' => $workspaceId, 'user_id' => $member->id],
                 [
-                    'role' => 'client',
+                    'role' => 'member',
                     'status' => $data['status'] ?? 'active',
                     'joined_at' => now(),
                 ]
@@ -108,24 +108,24 @@ class ClientService
         }
     }
 
-    public function delete(User $client): void
+    public function delete(User $member): void
     {
-        $client->delete();
+        $member->delete();
     }
 
-    public function toggleStatus(User $client): void
+    public function toggleStatus(User $member): void
     {
-        $workspaceStatus = WorkspaceMember::where('user_id', $client->id)
-            ->where('role', 'client')
+        $workspaceStatus = WorkspaceMember::where('user_id', $member->id)
+            ->where('role', 'member')
             ->where('status', 'active')
             ->exists() ? 'inactive' : 'active';
 
-        WorkspaceMember::where('user_id', $client->id)
-            ->where('role', 'client')
+        WorkspaceMember::where('user_id', $member->id)
+            ->where('role', 'member')
             ->update(['status' => $workspaceStatus]);
 
-        $client->status = $workspaceStatus;
-        $client->save();
+        $member->status = $workspaceStatus;
+        $member->save();
     }
 
     public function getAssignableWorkspacesForUser(User $authUser): array
@@ -147,3 +147,4 @@ class ClientService
             ->toArray();
     }
 }
+

@@ -153,6 +153,8 @@ class PermissionService
             'webhook' => 'Webhooks',
             'language' => 'Language Management',
             'client_management' => 'Client Management',
+            'manager_management' => 'Manager Management',
+            'member_management' => 'Member Management',
             'business' => 'Business Management',
             'settings' => 'System Settings',
         ];

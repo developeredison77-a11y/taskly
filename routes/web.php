@@ -671,6 +671,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('clients/{client}', [\App\Http\Controllers\ClientController::class, 'destroy'])->middleware('permission:client_management_delete')->name('clients.destroy');
         Route::put('clients/{client}/toggle-status', [\App\Http\Controllers\ClientController::class, 'toggleStatus'])->middleware('permission:client_management_update')->name('clients.toggle-status');
 
+        Route::get('managers', [\App\Http\Controllers\ManagerController::class, 'index'])->middleware('permission:manager_management_view_any')->name('managers.index');
+        Route::post('managers', [\App\Http\Controllers\ManagerController::class, 'store'])->middleware('permission:manager_management_create')->name('managers.store');
+        Route::put('managers/{manager}', [\App\Http\Controllers\ManagerController::class, 'update'])->middleware('permission:manager_management_update')->name('managers.update');
+        Route::delete('managers/{manager}', [\App\Http\Controllers\ManagerController::class, 'destroy'])->middleware('permission:manager_management_delete')->name('managers.destroy');
+        Route::put('managers/{manager}/toggle-status', [\App\Http\Controllers\ManagerController::class, 'toggleStatus'])->middleware('permission:manager_management_update')->name('managers.toggle-status');
+
+        Route::get('members', [\App\Http\Controllers\MemberController::class, 'index'])->middleware('permission:member_management_view_any')->name('members.index');
+        Route::post('members', [\App\Http\Controllers\MemberController::class, 'store'])->middleware('permission:member_management_create')->name('members.store');
+        Route::put('members/{member}', [\App\Http\Controllers\MemberController::class, 'update'])->middleware('permission:member_management_update')->name('members.update');
+        Route::delete('members/{member}', [\App\Http\Controllers\MemberController::class, 'destroy'])->middleware('permission:member_management_delete')->name('members.destroy');
+        Route::put('members/{member}/toggle-status', [\App\Http\Controllers\MemberController::class, 'toggleStatus'])->middleware('permission:member_management_update')->name('members.toggle-status');
+
 
         // Referral routes
         Route::middleware('permission:referral_view_any')->group(function () {

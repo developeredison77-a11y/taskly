@@ -98,6 +98,22 @@ export function AppSidebar() {
             });
         }
 
+        if (hasPermission(permissions, 'manager_management_view_any')) {
+            items.push({
+                title: t('Managers'),
+                href: route('managers.index'),
+                icon: Users,
+            });
+        }
+
+        if (hasPermission(permissions, 'member_management_view_any')) {
+            items.push({
+                title: t('Members'),
+                href: route('members.index'),
+                icon: Users,
+            });
+        }
+
         // Workspaces
         if (hasPermission(permissions, 'workspace_view_any')) {
             items.push({
