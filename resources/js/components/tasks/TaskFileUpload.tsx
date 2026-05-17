@@ -52,6 +52,7 @@ interface TaskFileUploadProps {
     allowedExtensions?: string[];
     maxFileSizeMB?: number;
     maxFiles?: number;
+    showFileList?: boolean;
 }
 
 const DEFAULT_ALLOWED_EXTENSIONS = [
@@ -74,7 +75,8 @@ export default function TaskFileUpload({
     onRemoveFile,
     allowedExtensions = DEFAULT_ALLOWED_EXTENSIONS,
     maxFileSizeMB = 10,
-    maxFiles = 25
+    maxFiles = 25,
+    showFileList = true
 }: TaskFileUploadProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragOver, setDragOver] = useState(false);
@@ -271,77 +273,81 @@ export default function TaskFileUpload({
                 </Card>
             )}
 
-            <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">Files</h3>
-                <Badge variant="outline">{totalCount}</Badge>
-            </div>
+            {showFileList && (
+                <>
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-medium">Files</h3>
+                        <Badge variant="outline">{totalCount}</Badge>
+                    </div>
 
-            {normalizedFiles.length === 0 ? (
-                <div className="text-center text-sm text-gray-500 py-8 border rounded-lg">No files uploaded</div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {normalizedFiles.map((file) => {
-                        const kind = fileKind(file);
-                        return (
-                            <div key={`${file.id}-${file.name}`} className="border rounded-lg overflow-hidden bg-white">
-                                <div className="h-32 bg-gray-50 flex items-center justify-center">
-                                    {kind === 'image' && (
-                                        <img
-                                            src={file.thumb_url || getPreviewSrc(file)}
-                                            alt={file.name}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                                e.currentTarget.src = getPreviewSrc(file);
-                                            }}
-                                        />
-                                    )}
-                                    {kind === 'video' && (
-                                        <video src={getPreviewSrc(file)} className="w-full h-full object-cover" />
-                                    )}
-                                    {kind === 'pdf' && <FileText className="h-10 w-10 text-red-500" />}
-                                    {kind === 'excel' && <FileSpreadsheet className="h-10 w-10 text-green-600" />}
-                                    {kind === 'other' && <File className="h-10 w-10 text-gray-500" />}
-                                </div>
-                                <div className="p-3 space-y-2">
-                                    <div className="text-sm font-medium truncate" title={file.name}>{file.name}</div>
-                                    <div className="text-xs text-gray-500">{formatFileSize(file.size)}</div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button type="button" size="icon" variant="outline" onClick={() => openPreview(file)} aria-label="View file">
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>View</TooltipContent>
-                                            </Tooltip>
-
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button type="button" size="icon" variant="outline" onClick={() => window.open(getDownloadSrc(file), '_blank')} aria-label="Download file">
-                                                        <Download className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Download</TooltipContent>
-                                            </Tooltip>
-
-                                            {!isReadOnly && (
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                    <Button type="button" size="icon" variant="destructive" onClick={() => setFileToDelete(file)} aria-label="Delete file">
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>Delete</TooltipContent>
-                                                </Tooltip>
+                    {normalizedFiles.length === 0 ? (
+                        <div className="text-center text-sm text-gray-500 py-8 border rounded-lg">No files uploaded</div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {normalizedFiles.map((file) => {
+                                const kind = fileKind(file);
+                                return (
+                                    <div key={`${file.id}-${file.name}`} className="border rounded-lg overflow-hidden bg-white">
+                                        <div className="h-32 bg-gray-50 flex items-center justify-center">
+                                            {kind === 'image' && (
+                                                <img
+                                                    src={file.thumb_url || getPreviewSrc(file)}
+                                                    alt={file.name}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.currentTarget.src = getPreviewSrc(file);
+                                                    }}
+                                                />
                                             )}
-                                        </TooltipProvider>
+                                            {kind === 'video' && (
+                                                <video src={getPreviewSrc(file)} className="w-full h-full object-cover" />
+                                            )}
+                                            {kind === 'pdf' && <FileText className="h-10 w-10 text-red-500" />}
+                                            {kind === 'excel' && <FileSpreadsheet className="h-10 w-10 text-green-600" />}
+                                            {kind === 'other' && <File className="h-10 w-10 text-gray-500" />}
+                                        </div>
+                                        <div className="p-3 space-y-2">
+                                            <div className="text-sm font-medium truncate" title={file.name}>{file.name}</div>
+                                            <div className="text-xs text-gray-500">{formatFileSize(file.size)}</div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button type="button" size="icon" variant="outline" onClick={() => openPreview(file)} aria-label="View file">
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>View</TooltipContent>
+                                                    </Tooltip>
+
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Button type="button" size="icon" variant="outline" onClick={() => window.open(getDownloadSrc(file), '_blank')} aria-label="Download file">
+                                                                <Download className="h-4 w-4" />
+                                                            </Button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>Download</TooltipContent>
+                                                    </Tooltip>
+
+                                                    {!isReadOnly && (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                            <Button type="button" size="icon" variant="destructive" onClick={() => setFileToDelete(file)} aria-label="Delete file">
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Delete</TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+                                                </TooltipProvider>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </>
             )}
 
             <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>

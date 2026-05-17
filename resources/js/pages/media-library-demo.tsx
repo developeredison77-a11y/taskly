@@ -1,5 +1,6 @@
 import { CrudDeleteModal } from '@/components/CrudDeleteModal';
 import { PageTemplate } from '@/components/page-template';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,18 +31,13 @@ export default function MediaLibraryDemo() {
     const permissions = auth?.permissions || [];
 
     const allowedTypes = storageSettings?.allowed_file_types || 'jpg,png,webp,gif';
-    const acceptAttribute = allowedTypes
-        .split(',')
-        .map((type) => `.${type.trim()}`)
-        .join(',');
     const [media, setMedia] = useState<MediaItem[]>([]);
     const [filteredMedia, setFilteredMedia] = useState<MediaItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-    const [uploading, setUploading] = useState(false);
-    const [dragActive, setDragActive] = useState(false);
+    const [uploadFiles, setUploadFiles] = useState<TaskFileItem[]>([]);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
     const [infoModalOpen, setInfoModalOpen] = useState(false);
@@ -104,92 +100,31 @@ export default function MediaLibraryDemo() {
         setCurrentPage(1);
     }, [searchTerm, media]);
 
-    const handleFileUpload = async (files: FileList) => {
-        setUploading(true);
-
-        const allowedExtensions = allowedTypes.split(',').map((type) => type.trim().toLowerCase());
-
-        const validFiles = Array.from(files).filter((file) => {
-            const fileExtension = file.name.split('.').pop()?.toLowerCase();
-            if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-                toast.error(`${file.name} - ${t('File type not allowed. Allowed types: {{types}}', { types: allowedTypes })}`);
-                return false;
-            }
-            return true;
-        });
-
-        if (validFiles.length === 0) {
-            setUploading(false);
+    const handleSharedUploadChange = useCallback((files: TaskFileItem[]) => {
+        if (!files.length) {
+            setUploadFiles([]);
             return;
         }
 
-        const formData = new FormData();
-        validFiles.forEach((file) => {
-            formData.append('files[]', file);
+        const mappedMedia: MediaItem[] = files.map((file) => ({
+            id: file.id,
+            name: file.name,
+            file_name: file.name,
+            url: file.url,
+            thumb_url: file.thumb_url || file.url,
+            size: file.size || 0,
+            mime_type: file.mime_type || '',
+            created_at: new Date().toISOString(),
+        }));
+
+        setMedia((prev) => {
+            const existingIds = new Set(prev.map((item) => item.id));
+            const newItems = mappedMedia.filter((item) => !existingIds.has(item.id));
+            return newItems.length ? [...newItems, ...prev] : prev;
         });
-
-        try {
-            const response = await fetch(route('api.media.batch'), {
-                method: 'POST',
-                body: formData,
-                credentials: 'same-origin',
-                headers: {
-                    'X-CSRF-TOKEN': csrf_token,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                setMedia((prev) => [...result.data, ...prev]);
-                toast.success(result.message);
-
-                // Show individual errors if any
-                if (result.errors && result.errors.length > 0) {
-                    result.errors.forEach((error: string) => {
-                        toast.error(error);
-                    });
-                }
-            } else {
-                // Handle demo mode and other errors
-                if (response.status === 403) {
-                    toast.error(result.message);
-                } else if (result.errors && result.errors.length > 0) {
-                    result.errors.forEach((error: string) => {
-                        toast.error(error);
-                    });
-                } else {
-                    toast.error(result.message || t('Failed to upload files'));
-                }
-            }
-        } catch (error) {
-            toast.error(t('Error uploading files'));
-        }
-
-        setUploading(false);
+        setUploadFiles([]);
         setIsUploadModalOpen(false);
-    };
-
-    const handleDrag = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.type === 'dragenter' || e.type === 'dragover') {
-            setDragActive(true);
-        } else if (e.type === 'dragleave') {
-            setDragActive(false);
-        }
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragActive(false);
-
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            handleFileUpload(e.dataTransfer.files);
-        }
-    };
+    }, []);
 
     const deleteMedia = async () => {
         try {
@@ -561,64 +496,14 @@ export default function MediaLibraryDemo() {
                             </DialogTitle>
                         </DialogHeader>
 
-                        <div className="space-y-6">
-                            <div
-                                className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 ${dragActive
-                                    ? 'border-blue-500 bg-blue-50 scale-[1.02]'
-                                    : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-                                    }`}
-                                onDragEnter={handleDrag}
-                                onDragLeave={handleDrag}
-                                onDragOver={handleDrag}
-                                onDrop={handleDrop}
-                            >
-                                <div className={`transition-all duration-200 ${dragActive ? 'scale-110' : ''
-                                    }`}>
-                                    <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                                        <Upload className={`h-8 w-8 transition-colors ${dragActive ? 'text-blue-500' : 'text-gray-400'
-                                            }`} />
-                                    </div>
-                                    <h3 className="text-lg font-medium mb-2">
-                                        {dragActive ? t('Drop files here') : t('Upload your files')}
-                                    </h3>
-                                    <p className="text-sm text-muted-foreground mb-6">
-                                        {t('Drag and drop your files here, or click to browse')}
-                                    </p>
-
-                                    <Input
-                                        type="file"
-                                        multiple
-                                        onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                                        className="hidden"
-                                        accept={acceptAttribute}
-                                        id="file-upload-modal"
-                                    />
-
-                                    <Button
-                                        type="button"
-                                        onClick={() => document.getElementById('file-upload-modal')?.click()}
-                                        disabled={uploading}
-                                        size="lg"
-                                    >
-                                        {uploading ? (
-                                            <>
-                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                {t('Uploading...')}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                {t('Choose Files')}
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
-
-                                {dragActive && (
-                                    <div className="absolute inset-0 bg-blue-500/10 rounded-xl" />
-                                )}
-                            </div>
-                        </div>
+                        <TaskFileUpload
+                            mode="edit"
+                            files={uploadFiles}
+                            onFilesChange={handleSharedUploadChange}
+                            allowedExtensions={allowedTypes.split(',').map((type) => type.trim().toLowerCase()).filter(Boolean)}
+                            maxFileSizeMB={storageSettings?.max_file_size_mb || 2}
+                            showFileList={false}
+                        />
                     </DialogContent>
                 </Dialog>
 
