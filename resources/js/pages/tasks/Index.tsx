@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, Copy, Trash2, LayoutGrid, List, User as UserIcon, CheckSquare, Columns, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, Copy, Trash2, LayoutGrid, List, User as UserIcon, CheckSquare, Columns, AlertTriangle, FileText } from 'lucide-react';
 import { PageTemplate } from '@/components/page-template';
 import { CrudDeleteModal } from '@/components/CrudDeleteModal';
 import { Task, Project, TaskStage, User, PaginatedData } from '@/types';
@@ -398,7 +398,7 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
     const actions = [
         {
             label: t('Files'),
-            icon: 'Paperclip',
+            icon: 'FileText',
             action: 'files',
             className: 'text-slate-500 hover:text-slate-700',
             condition: () => true
@@ -818,6 +818,22 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
                                                                                         size="icon"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation();
+                                                                                            handleAction('files', task.id);
+                                                                                        }}
+                                                                                        className="h-6 w-6 text-slate-500 hover:text-slate-700"
+                                                                                    >
+                                                                                        <FileText className="h-3 w-3" />
+                                                                                    </Button>
+                                                                                </TooltipTrigger>
+                                                                                <TooltipContent>{t('Files')}</TooltipContent>
+                                                                            </Tooltip>
+                                                                            <Tooltip>
+                                                                                <TooltipTrigger asChild>
+                                                                                    <Button
+                                                                                        variant="ghost"
+                                                                                        size="icon"
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
                                                                                             handleAction('view', task.id);
                                                                                         }}
                                                                                         className="h-6 w-6 text-blue-500 hover:text-blue-700"
@@ -1004,6 +1020,19 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
                                     </CardContent>
 
                                     <CardFooter className="flex justify-end gap-1 pt-0 pb-2">
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleAction('files', task.id)}
+                                                    className="text-slate-500 hover:text-slate-700 h-8 w-8"
+                                                >
+                                                    <FileText className="h-4 w-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>{t('Files')}</TooltipContent>
+                                        </Tooltip>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Button
