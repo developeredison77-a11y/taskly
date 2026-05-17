@@ -130,12 +130,14 @@ export default function ManagersIndex() {
             label: t('Edit'),
             icon: 'Edit',
             action: 'edit',
+            condition: (row: any) => row.can_manage,
             className: 'text-amber-500 hover:text-amber-700'
         });
         actions.push({
             label: t('Toggle Status'),
             icon: 'RefreshCcw',
             action: 'toggle',
+            condition: (row: any) => row.can_manage,
             className: 'text-blue-500 hover:text-blue-700'
         });
     }
@@ -144,6 +146,7 @@ export default function ManagersIndex() {
             label: t('Delete'),
             icon: 'Trash2',
             action: 'delete',
+            condition: (row: any) => row.can_manage,
             className: 'text-red-500 hover:text-red-700'
         });
     }
@@ -160,6 +163,7 @@ export default function ManagersIndex() {
                 </div>
             )
         },
+        { key: 'workspace_names', label: t('Workspace'), sortable: false },
         { key: 'phone', label: t('Phone'), sortable: true },
         {
             key: 'status',

@@ -23,10 +23,10 @@ class ClientController extends Controller
     {
         $this->authorizePermission('client_management_view_any');
 
+        $user = auth()->user();
         $workspaceId = auth()->user()->current_workspace_id;
 
-        $clients = $this->clientService->getPaginatedForWorkspace($workspaceId, $request);
-        $user = auth()->user();
+        $clients = $this->clientService->getPaginatedForWorkspace($workspaceId, $request, $user);
         $workspaces = $this->clientService->getAssignableWorkspacesForUser($user);
 
         return Inertia::render('clients/Index', [
@@ -54,6 +54,7 @@ class ClientController extends Controller
     {
         $this->authorizePermission('client_management_update');
         $this->ensureWorkspaceAccess($client);
+        $this->ensureManageAccess($client);
 
         $this->clientService->update($client, $request->validated());
 
@@ -64,6 +65,7 @@ class ClientController extends Controller
     {
         $this->authorizePermission('client_management_delete');
         $this->ensureWorkspaceAccess($client);
+        $this->ensureManageAccess($client);
 
         $this->clientService->delete($client);
 
@@ -74,6 +76,7 @@ class ClientController extends Controller
     {
         $this->authorizePermission('client_management_update');
         $this->ensureWorkspaceAccess($client);
+        $this->ensureManageAccess($client);
 
         $this->clientService->toggleStatus($client);
 
@@ -82,7 +85,12 @@ class ClientController extends Controller
 
     private function ensureWorkspaceAccess(User $client): void
     {
-        $workspaceId = auth()->user()->current_workspace_id;
+        $user = auth()->user();
+        if (in_array($user->type, ['superadmin', 'super admin'], true)) {
+            return;
+        }
+
+        $workspaceId = $user->current_workspace_id;
         if (!$workspaceId) {
             abort(403, 'Unauthorized');
         }
@@ -92,7 +100,26 @@ class ClientController extends Controller
             ->wherePivot('role', 'client')
             ->exists();
 
+        if ($hasAccess && in_array($user->type, ['company', 'company_admin'], true)) {
+            $hasAccess = $client->workspaces()
+                ->where('workspace_id', $workspaceId)
+                ->wherePivot('role', 'client')
+                ->where('owner_id', $user->id)
+                ->exists();
+        }
+
         if (!$hasAccess) {
+            abort(403, 'Unauthorized');
+        }
+    }
+
+    private function ensureManageAccess(User $client): void
+    {
+        $user = auth()->user();
+        if (in_array($user->type, ['superadmin', 'super admin'], true)) {
+            return;
+        }
+        if (in_array($user->type, ['company', 'company_admin'], true) && (int) $client->created_by !== (int) $user->id) {
             abort(403, 'Unauthorized');
         }
     }

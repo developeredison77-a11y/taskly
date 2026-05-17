@@ -537,7 +537,7 @@ export function AppSidebar() {
 
     const { position, effectivePosition, isRtl } = useLayout();
     const { variant, collapsible, style } = useSidebarSettings();
-    const { logoLight, logoDark, favicon, updateBrandSettings } = useBrand();
+    const { logoLight, logoDark, updateBrandSettings } = useBrand();
     const [sidebarStyle, setSidebarStyle] = useState({});
 
     useEffect(() => {
@@ -581,8 +581,8 @@ export function AppSidebar() {
             <SidebarHeader className={style !== 'plain' ? 'sidebar-styled' : ''} style={sidebarStyle}>
                 <div className="flex justify-center items-center p-2">
                     <Link href={getFirstAvailableHref()} prefetch className="flex items-center justify-center">
-                        {/* Logo for expanded sidebar */}
-                        <div className="group-data-[collapsible=icon]:hidden flex items-center">
+                        {/* Logo should always be visible */}
+                        <div className="flex items-center">
                             {(() => {
                                 const currentLogo = isDarkTheme ? logoLight : logoDark;
                                 const displayUrl = currentLogo ? (
@@ -593,7 +593,6 @@ export function AppSidebar() {
 
                                 return displayUrl ? (
                                     <img
-                                        key={`${currentLogo}-${isDarkTheme}-${Date.now()}`}
                                         src={displayUrl}
                                         alt="Logo"
                                         className="w-auto transition-all duration-200"
@@ -607,30 +606,6 @@ export function AppSidebar() {
                             })()}
                         </div>
 
-                        {/* Icon for collapsed sidebar */}
-                        <div className="h-8 w-8 hidden group-data-[collapsible=icon]:block">
-                            {(() => {
-                                const displayFavicon = favicon ? (
-                                    favicon.startsWith('http') ? favicon :
-                                        favicon.startsWith('/storage/') ? `${window.location.origin}${favicon}` :
-                                            favicon.startsWith('/') ? `${window.location.origin}${favicon}` : favicon
-                                ) : '';
-
-                                return displayFavicon ? (
-                                    <img
-                                        key={`${favicon}-${Date.now()}`}
-                                        src={displayFavicon}
-                                        alt="Icon"
-                                        className="h-8 w-8 transition-all duration-200"
-                                        onError={() => updateBrandSettings({ favicon: '' })}
-                                    />
-                                ) : (
-                                    <div className="h-8 w-8 bg-primary text-white rounded flex items-center justify-center font-bold shadow-sm">
-                                        W
-                                    </div>
-                                );
-                            })()}
-                        </div>
                     </Link>
                 </div>
 

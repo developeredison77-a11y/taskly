@@ -11,13 +11,22 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, variant = 'header' }: AppShellProps) {
-    const [isOpen, setIsOpen] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('sidebar') !== 'false' : true));
+    const [isOpen, setIsOpen] = useState(true);
 
     const handleSidebarChange = (open: boolean) => {
-        setIsOpen(open);
+        // Keep desktop sidebar always open so logo remains visible consistently.
+        // Mobile open/close still works via Sidebar's internal openMobile state.
+        if (open !== true) {
+            setIsOpen(true);
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('sidebar', 'true');
+            }
+            return;
+        }
 
+        setIsOpen(true);
         if (typeof window !== 'undefined') {
-            localStorage.setItem('sidebar', String(open));
+            localStorage.setItem('sidebar', 'true');
         }
     };
 

@@ -12,20 +12,29 @@ use Illuminate\Support\Str;
 
 class MemberService
 {
-    public function getPaginatedForWorkspace(?int $workspaceId, Request $request): LengthAwarePaginator
+    public function getPaginatedForWorkspace(?int $workspaceId, Request $request, User $authUser): LengthAwarePaginator
     {
         $perPage = in_array((int) $request->get('per_page', 10), [10, 25, 50, 100]) ? (int) $request->get('per_page', 10) : 10;
-        if (!$workspaceId) {
+        if (!$workspaceId && !in_array($authUser->type, ['superadmin', 'super admin'], true)) {
             return User::query()->whereRaw('1 = 0')->paginate($perPage)->withQueryString();
         }
 
         $query = User::query()
             ->where('type', 'member')
-            ->with(['workspaces:id,name'])
-            ->whereHas('workspaces', function ($q) use ($workspaceId) {
+            ->with(['workspaces:id,name']);
+
+        if (!in_array($authUser->type, ['superadmin', 'super admin'], true)) {
+            $query->whereHas('workspaces', function ($q) use ($workspaceId) {
                 $q->where('workspace_id', $workspaceId)
                     ->where('role', 'member');
             });
+        } elseif (in_array($authUser->type, ['company', 'company_admin'], true)) {
+            $query->whereHas('workspaces', function ($q) use ($workspaceId, $authUser) {
+                $q->where('workspace_id', $workspaceId)
+                    ->where('role', 'member')
+                    ->where('owner_id', $authUser->id);
+            });
+        }
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -36,12 +45,16 @@ class MemberService
             });
         }
 
-        if ($request->filled('status') && in_array($request->status, ['active', 'inactive'])) {
-            $query->whereHas('workspaces', function ($q) use ($workspaceId, $request) {
-                $q->where('workspace_id', $workspaceId)
-                    ->where('role', 'member')
-                    ->where('status', $request->status);
-            });
+        if ($request->filled('status') && in_array($request->status, ['active', 'inactive'], true)) {
+            if ($workspaceId) {
+                $query->whereHas('workspaces', function ($q) use ($workspaceId, $request) {
+                    $q->where('workspace_id', $workspaceId)
+                        ->where('role', 'member')
+                        ->where('status', $request->status);
+                });
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         $allowedSortFields = ['name', 'email', 'phone', 'status', 'created_at'];
@@ -57,12 +70,24 @@ class MemberService
 
         $query->orderBy($sortField, $sortDirection);
 
-        return $query->paginate($perPage)->withQueryString();
+        return $query->paginate($perPage)->withQueryString()->through(function (User $member) use ($authUser) {
+            $member->workspace_names = $member->workspaces->pluck('name')->join(', ');
+            $member->can_manage = in_array($authUser->type, ['superadmin', 'super admin'], true)
+                || (in_array($authUser->type, ['company', 'company_admin'], true) && (int) $member->created_by === (int) $authUser->id);
+            return $member;
+        });
     }
 
     public function create(array $data, int $userId): User
     {
         $workspaceIds = $data['workspace_ids'] ?? [];
+        $authUser = auth()->user();
+        if ($authUser && in_array($authUser->type, ['company', 'company_admin'], true)) {
+            $workspaceIds = Workspace::whereIn('id', $workspaceIds)
+                ->where('owner_id', $authUser->id)
+                ->pluck('id')
+                ->all();
+        }
         unset($data['workspace_ids']);
 
         $member = User::create([
@@ -89,6 +114,13 @@ class MemberService
     public function update(User $member, array $data): void
     {
         $workspaceIds = $data['workspace_ids'] ?? [];
+        $authUser = auth()->user();
+        if ($authUser && in_array($authUser->type, ['company', 'company_admin'], true)) {
+            $workspaceIds = Workspace::whereIn('id', $workspaceIds)
+                ->where('owner_id', $authUser->id)
+                ->pluck('id')
+                ->all();
+        }
         unset($data['workspace_ids']);
 
         $data['type'] = 'member';
@@ -133,14 +165,13 @@ class MemberService
 
     public function getAssignableWorkspacesForUser(User $authUser): array
     {
-        return Workspace::query()
-            ->where(function ($query) use ($authUser) {
-                $query->where('owner_id', $authUser->id)
-                    ->orWhereHas('members', function ($q) use ($authUser) {
-                        $q->where('user_id', $authUser->id)
-                            ->where('status', 'active');
-                    });
-            })
+        $query = Workspace::query();
+
+        if (!in_array($authUser->type, ['superadmin', 'super admin'], true)) {
+            $query->where('owner_id', $authUser->id);
+        }
+
+        return $query
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn ($workspace) => [
