@@ -16,6 +16,7 @@ import { CrudTable } from '@/components/CrudTable';
 import { InvoicePaymentModal } from '@/components/invoices/invoice-payment-modal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTranslation } from 'react-i18next';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 
 interface Invoice {
     id: number;
@@ -41,6 +42,8 @@ interface Invoice {
     status_color: string;
     payment_token: string;
     created_at: string;
+    attachments_count?: number;
+    attachments?: any[];
 }
 
 export default function InvoiceIndex() {
@@ -69,6 +72,35 @@ export default function InvoiceIndex() {
     const [invoiceToPay, setInvoiceToPay] = useState<Invoice | null>(null);
     const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
     const [invoiceToMarkPaid, setInvoiceToMarkPaid] = useState<Invoice | null>(null);
+    const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
+    const [filesInvoice, setFilesInvoice] = useState<Invoice | null>(null);
+
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
+
+    const mapAttachmentToTaskFile = (attachment: any): TaskFileItem => ({
+        id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        attachment_id: attachment.id,
+        name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+        url: attachment.media_item?.url || attachment.mediaItem?.url || route('invoice-attachments.preview', attachment.id),
+        thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || route('invoice-attachments.preview', attachment.id),
+        preview_url: route('invoice-attachments.preview', attachment.id),
+        download_url: route('invoice-attachments.download', attachment.id),
+        mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+        size: getAttachmentSize(attachment)
+    });
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
@@ -112,6 +144,9 @@ export default function InvoiceIndex() {
             case 'view':
                 router.get(route('invoices.show', invoice.id));
                 break;
+            case 'files':
+                handleViewInvoiceFiles(invoice.id);
+                break;
             case 'edit':
                 router.get(route('invoices.edit', invoice.id));
                 break;
@@ -148,6 +183,19 @@ export default function InvoiceIndex() {
                 setInvoiceToDelete(invoice);
                 setIsDeleteModalOpen(true);
                 break;
+        }
+    };
+
+    const handleViewInvoiceFiles = async (invoiceId: number) => {
+        try {
+            const response = await fetch(route('invoices.show', invoiceId), {
+                headers: { 'Accept': 'application/json' }
+            });
+            const data = await response.json();
+            setFilesInvoice(data.invoice);
+            setIsFilesModalOpen(true);
+        } catch (error) {
+            toast.error(t('Failed to load invoice files'));
         }
     };
 
@@ -219,6 +267,12 @@ export default function InvoiceIndex() {
     ];
 
     const actions = [
+        {
+            label: t('Files'),
+            icon: 'FileText',
+            action: 'files',
+            className: 'text-slate-500 hover:text-slate-700'
+        },
         {
             label: t('View'),
             icon: 'Eye',
@@ -670,6 +724,19 @@ export default function InvoiceIndex() {
                             <CardFooter className="flex justify-end gap-1 pt-0 pb-2">
                                 <Tooltip>
                                     <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleAction('files', invoice)}
+                                            className="text-slate-500 hover:text-slate-700 h-8 w-8"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Files</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
                                         <Button 
                                             variant="ghost" 
                                             size="icon" 
@@ -887,6 +954,25 @@ export default function InvoiceIndex() {
                             {t('Mark as Paid')}
                         </Button>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isFilesModalOpen} onOpenChange={(open) => {
+                setIsFilesModalOpen(open);
+                if (!open) setFilesInvoice(null);
+            }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{t('Files')} {filesInvoice?.invoice_number ? `- ${filesInvoice.invoice_number}` : ''}</DialogTitle>
+                    </DialogHeader>
+                    {filesInvoice?.attachments?.length ? (
+                        <TaskFileUpload
+                            mode="view"
+                            files={(filesInvoice.attachments || []).map(mapAttachmentToTaskFile)}
+                        />
+                    ) : (
+                        <div className="py-10 text-center text-sm text-gray-500">{t('No files available')}</div>
+                    )}
                 </DialogContent>
             </Dialog>
         </PageTemplate>

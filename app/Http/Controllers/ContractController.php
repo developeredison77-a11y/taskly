@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use App\Events\ContractCreated;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Schema;
 
 class ContractController extends Controller
 {
@@ -157,6 +158,8 @@ class ContractController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
             'client_id' => 'required|exists:users,id',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id',
         ]);
 
         $contract = Contract::create([
@@ -175,6 +178,22 @@ class ContractController extends Controller
             'workspace_id' => auth()->user()->current_workspace_id,
             'created_by' => auth()->id(),
         ]);
+
+        if ($this->hasContractMediaAttachmentsColumn() && $request->filled('media_item_ids')) {
+            $mediaItemIds = collect($request->input('media_item_ids', []))->filter()->unique()->values();
+            foreach ($mediaItemIds as $mediaItemId) {
+                ContractAttachment::firstOrCreate(
+                    [
+                        'contract_id' => $contract->id,
+                        'media_item_id' => $mediaItemId
+                    ],
+                    [
+                        'workspace_id' => $contract->workspace_id,
+                        'uploaded_by' => auth()->id()
+                    ]
+                );
+            }
+        }
        if (!config('app.is_demo', true)) {
             event(new ContractCreated($contract));
         }
@@ -190,11 +209,15 @@ class ContractController extends Controller
             'creator',
             'notes' => fn($q) => $q->with('creator'),
             'comments' => fn($q) => $q->with('creator')->orderBy('created_at', 'desc'),
-            'attachments'
+            'attachments.mediaItem'
         ]);
 
         foreach ($contract->attachments as $attachment) {
-            $attachment->url = asset('storage/media/' . $attachment->files);
+            $attachment->url = $attachment->mediaItem?->url ?: asset('storage/media/' . $attachment->files);
+        }
+
+        if (request()->expectsJson()) {
+            return response()->json(['contract' => $contract]);
         }
 
         $emailEnabled = isEmailTemplateEnabled('New Contract', auth()->user()->id);
@@ -252,6 +275,8 @@ class ContractController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
             'client_id' => 'required|exists:users,id',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id',
         ]);
 
         $contract->update($request->only([
@@ -268,6 +293,31 @@ class ContractController extends Controller
             'notes',
             'currency'
         ]));
+
+        if ($this->hasContractMediaAttachmentsColumn() && $request->has('media_item_ids')) {
+            $incomingMediaIds = collect($request->input('media_item_ids', []))->filter()->unique()->values();
+            $existingMediaAttachments = $contract->attachments()->whereNotNull('media_item_id')->get();
+
+            $existingByMediaId = $existingMediaAttachments->keyBy('media_item_id');
+            $incomingSet = $incomingMediaIds->flip();
+
+            foreach ($existingByMediaId as $mediaId => $attachment) {
+                if (!$incomingSet->has((int) $mediaId)) {
+                    $attachment->delete();
+                }
+            }
+
+            foreach ($incomingMediaIds as $mediaItemId) {
+                if (!$existingByMediaId->has((int) $mediaItemId)) {
+                    ContractAttachment::create([
+                        'workspace_id' => $contract->workspace_id,
+                        'contract_id' => $contract->id,
+                        'media_item_id' => $mediaItemId,
+                        'uploaded_by' => auth()->id()
+                    ]);
+                }
+            }
+        }
 
         return redirect()->route('contracts.index')->with('success', 'Contract updated successfully.');
     }
@@ -392,30 +442,49 @@ class ContractController extends Controller
         }
 
         $request->validate([
-            'files' => 'required|array',
-            'files.*' => 'file|max:10240'
+            'files' => 'nullable|array',
+            'files.*' => 'file|max:10240',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id'
         ]);
-        
-        foreach ($request->file('files') as $file) {
-            $filenameWithExt = $file->getClientOriginalName();
-            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
-            $extension = $file->getClientOriginalExtension();
-            $fileNameToStore = $filename . '_' . time() . '_' . uniqid() . '.' . $extension;
 
-            $singleFileRequest = new Request();
-            $singleFileRequest->files->set('file', $file);
-            $singleFileRequest->merge(['file' => $file]);
-            
-            $upload = upload_file($singleFileRequest, 'file', $fileNameToStore, 'contracts/attachments');
-            
-            if ($upload['status'] == true) {
-                ContractAttachment::create([
-                    'contract_id' => $contract->id,
-                    'files' => $upload['url'],
-                    'workspace_id' => $contract->workspace_id
-                ]);
-            } else {
-                return back()->withErrors(['files' => $upload['msg']]);
+        if ($this->hasContractMediaAttachmentsColumn() && $request->filled('media_item_ids')) {
+            foreach ($request->input('media_item_ids', []) as $mediaItemId) {
+                ContractAttachment::firstOrCreate(
+                    [
+                        'contract_id' => $contract->id,
+                        'media_item_id' => $mediaItemId
+                    ],
+                    [
+                        'workspace_id' => $contract->workspace_id,
+                        'uploaded_by' => auth()->id()
+                    ]
+                );
+            }
+        }
+
+        if ($request->hasFile('files')) {
+            foreach ($request->file('files') as $file) {
+                $filenameWithExt = $file->getClientOriginalName();
+                $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME);
+                $extension = $file->getClientOriginalExtension();
+                $fileNameToStore = $filename . '_' . time() . '_' . uniqid() . '.' . $extension;
+
+                $singleFileRequest = new Request();
+                $singleFileRequest->files->set('file', $file);
+                $singleFileRequest->merge(['file' => $file]);
+
+                $upload = upload_file($singleFileRequest, 'file', $fileNameToStore, 'contracts/attachments');
+
+                if ($upload['status'] == true) {
+                    ContractAttachment::create([
+                        'contract_id' => $contract->id,
+                        'files' => $upload['url'],
+                        'workspace_id' => $contract->workspace_id
+                    ]);
+                } else {
+                    return back()->withErrors(['files' => $upload['msg']]);
+                }
             }
         }
 
@@ -424,13 +493,27 @@ class ContractController extends Controller
 
     public function fileDelete(ContractAttachment $attachment)
     {
-        delete_file($attachment->files);
+        if (!empty($attachment->files)) {
+            delete_file($attachment->files);
+        }
         $attachment->delete();
         return redirect()->back()->with('success', 'Attachment removed successfully.');
     }
 
     public function fileDownload(ContractAttachment $attachment)
     {
+        if ($attachment->mediaItem) {
+            return redirect()->to(route('api.media.download', $attachment->media_item_id));
+        }
+        return download_file($attachment->files, basename($attachment->files));
+    }
+
+    public function filePreview(ContractAttachment $attachment)
+    {
+        if ($attachment->mediaItem) {
+            return redirect()->to(route('api.media.download', $attachment->media_item_id));
+        }
+
         return download_file($attachment->files, basename($attachment->files));
     }
 
@@ -453,5 +536,14 @@ class ContractController extends Controller
         $contract->update($updates);
 
         return redirect()->back()->with('success', 'Signature added successfully.');
+    }
+
+    private function hasContractMediaAttachmentsColumn(): bool
+    {
+        try {
+            return Schema::hasTable('contracts_attachments') && Schema::hasColumn('contracts_attachments', 'media_item_id');
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }

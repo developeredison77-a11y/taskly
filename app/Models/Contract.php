@@ -59,7 +59,9 @@ class Contract extends BaseModel
 
         static::deleting(function ($contract) {
             foreach ($contract->attachments as $attachment) {
-                delete_file($attachment->files);
+                if (!empty($attachment->files)) {
+                    delete_file($attachment->files);
+                }
             }
         });
     }

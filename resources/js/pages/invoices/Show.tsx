@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { QRCodeGenerator } from '@/components/QRCodeGenerator';
 import { NewYork, Toronto, Rio, London, Istanbul, Mumbai, HongKong, Tokyo, Sydney, Paris } from '../settings/components/invoice-templates';
 import { useBrand } from '@/contexts/BrandContext';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 
 interface InvoiceItem {
     id: number;
@@ -68,6 +69,7 @@ interface Invoice {
     terms?: string;
     payment_token: string;
     items: InvoiceItem[];
+    attachments?: any[];
     created_at: string;
 }
 
@@ -274,6 +276,33 @@ export default function InvoiceShow() {
         return formatCurrency(amount);
     };
 
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
+
+    const invoiceFiles: TaskFileItem[] = (invoice.attachments || []).map((attachment: any) => ({
+        id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        attachment_id: attachment.id,
+        name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+        url: attachment.media_item?.url || attachment.mediaItem?.url || route('invoice-attachments.preview', attachment.id),
+        thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || route('invoice-attachments.preview', attachment.id),
+        preview_url: route('invoice-attachments.preview', attachment.id),
+        download_url: route('invoice-attachments.download', attachment.id),
+        mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+        size: getAttachmentSize(attachment)
+    }));
+
     const showQr = invoiceSettings?.invoice_qr_display === 'true' || invoiceSettings?.invoice_qr_display === true;
     const footerTitle = invoiceSettings?.invoice_footer_title || '';
     const footerNotes = invoiceSettings?.invoice_footer_notes || '';
@@ -469,6 +498,21 @@ export default function InvoiceShow() {
                                 </div>
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-xl font-bold tracking-tight">
+                            {t('Files')}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {invoiceFiles.length > 0 ? (
+                            <TaskFileUpload mode="view" files={invoiceFiles} />
+                        ) : (
+                            <div className="py-6 text-center text-sm text-gray-500">{t('No files available')}</div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

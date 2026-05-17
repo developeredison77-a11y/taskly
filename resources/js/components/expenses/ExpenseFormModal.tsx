@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/components/custom-toast';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -33,8 +35,23 @@ export default function ExpenseFormModal({ isOpen, onClose, expense, projects, m
 
     const [availableCategories, setAvailableCategories] = useState<any[]>([]);
     const [availableTasks, setAvailableTasks] = useState<any[]>([]);
+    const [expenseFiles, setExpenseFiles] = useState<TaskFileItem[]>([]);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
 
     useEffect(() => {
         if (mode === 'edit' && expense && isOpen) {
@@ -52,6 +69,20 @@ export default function ExpenseFormModal({ isOpen, onClose, expense, projects, m
                 description: expense.description || ''
             });
             loadProjectData(expense.project_id);
+
+            const mappedFiles: TaskFileItem[] = (expense.attachments || []).map((attachment: any) => ({
+                id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                attachment_id: attachment.id,
+                name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+                url: attachment.media_item?.url || attachment.mediaItem?.url || route('expense-attachments.preview', attachment.id),
+                thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || route('expense-attachments.preview', attachment.id),
+                preview_url: route('expense-attachments.preview', attachment.id),
+                download_url: route('expense-attachments.download', attachment.id),
+                mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+                size: getAttachmentSize(attachment)
+            }));
+            setExpenseFiles(mappedFiles);
         } else if (mode === 'create' && isOpen) {
             const projectId = currentProject ? currentProject.id.toString() : '';
             setFormData({
@@ -69,6 +100,7 @@ export default function ExpenseFormModal({ isOpen, onClose, expense, projects, m
                 setAvailableCategories([]);
                 setAvailableTasks([]);
             }
+            setExpenseFiles([]);
         }
     }, [mode, expense, isOpen, currentProject]);
 
@@ -124,7 +156,10 @@ export default function ExpenseFormModal({ isOpen, onClose, expense, projects, m
             amount: parseFloat(formData.amount),
             expense_date: formData.expense_date,
             title: formData.title,
-            description: formData.description
+            description: formData.description,
+            media_item_ids: expenseFiles
+                .map((file) => file.media_id || file.id)
+                .filter((id) => !!id)
         };
 
         if (mode === 'create') {
@@ -156,10 +191,26 @@ export default function ExpenseFormModal({ isOpen, onClose, expense, projects, m
     };
 
     const canEdit = !expense || expense.status === 'pending' || expense.status === 'requires_info';
+    
+    const handleRemoveFile = (file: TaskFileItem) => {
+        if (!file.attachment_id) {
+            setExpenseFiles((prev) => prev.filter((f) => f.id !== file.id));
+            return;
+        }
+
+        router.delete(route('expense-attachments.destroy', file.attachment_id), {
+            onSuccess: () => {
+                setExpenseFiles((prev) => prev.filter((f) => f.attachment_id !== file.attachment_id));
+            },
+            onError: () => {
+                toast.error(t('Failed to delete file'));
+            }
+        });
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl z-50">
+            <DialogContent className="max-w-2xl z-50 max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <div className="flex justify-between items-center">
                         <DialogTitle>{mode === 'create' ? t('Create Expense') : t('Edit Expense')}</DialogTitle>
@@ -299,6 +350,18 @@ export default function ExpenseFormModal({ isOpen, onClose, expense, projects, m
                             rows={3}
                             disabled={!canEdit}
                         />
+                    </div>
+
+                    <div>
+                        <Label>{t('Files')}</Label>
+                        <div className="mt-2">
+                            <TaskFileUpload
+                                mode={canEdit ? 'edit' : 'view'}
+                                files={expenseFiles}
+                                onFilesChange={setExpenseFiles}
+                                onRemoveFile={handleRemoveFile}
+                            />
+                        </div>
                     </div>
 
                     <div className="flex justify-end gap-2 pt-4">

@@ -229,7 +229,7 @@ export default function ContractShow() {
 
     const getFilteredAttachments = () => {
         const filtered = contract.attachments?.filter(attachment =>
-            attachment.files?.toLowerCase().includes(searchAttachments.toLowerCase())
+            getAttachmentName(attachment)?.toLowerCase().includes(searchAttachments.toLowerCase())
         ) || [];
         const startIndex = (currentAttachmentsPage - 1) * attachmentsPerPage;
         return {
@@ -237,6 +237,24 @@ export default function ContractShow() {
             total: filtered.length,
             totalPages: Math.ceil(filtered.length / attachmentsPerPage)
         };
+    };
+
+    const getAttachmentName = (attachment: any) =>
+        attachment.media_item?.name ||
+        attachment.mediaItem?.name ||
+        attachment.files ||
+        'Unnamed file';
+
+    const getAttachmentUrl = (attachment: any) =>
+        attachment.media_item?.url ||
+        attachment.mediaItem?.url ||
+        attachment.url ||
+        (attachment.files ? `/storage/media/${attachment.files}` : '');
+
+    const isImageAttachment = (attachment: any) => {
+        const mime = (attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '').toLowerCase();
+        if (mime.startsWith('image/')) return true;
+        return getAttachmentName(attachment).match(/\.(jpg|jpeg|png|gif|webp)$/i);
     };
 
     const handleSignature = () => {
@@ -700,11 +718,11 @@ export default function ContractShow() {
                                         <Card key={attachment.id} className="group hover:shadow-lg transition-all duration-200 border-0 shadow-md hover:scale-[1.02] bg-gradient-to-br from-white to-gray-50">
                                             <CardContent className="p-0">
                                                 <div className="relative overflow-hidden rounded-t-lg">
-                                                    {attachment.files?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                                                    {isImageAttachment(attachment) ? (
                                                         <div className="relative">
                                                             <img
-                                                                src={attachment.url || `/storage/media/${attachment.files}`}
-                                                                alt={attachment.files}
+                                                                src={getAttachmentUrl(attachment)}
+                                                                alt={getAttachmentName(attachment)}
                                                                 className="w-full h-24 object-cover transition-transform duration-200 group-hover:scale-105"
                                                                 onError={(e) => {
                                                                     e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NyA2NUw5MyA3MUwxMDcgNTdMMTIzIDczVjEwNUg3N1Y2NUg4N1oiIGZpbGw9IiM5Q0EzQUYiLz4KPGNpcmNsZSBjeD0iOTEiIGN5PSI1NyIgcj0iNCIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
@@ -745,8 +763,8 @@ export default function ContractShow() {
                                                     )}
                                                 </div>
                                                 <div className="p-2">
-                                                    <h4 className="font-medium text-xs text-gray-900 truncate mb-1" title={attachment.files}>
-                                                        {attachment.files || 'Unnamed file'}
+                                                    <h4 className="font-medium text-xs text-gray-900 truncate mb-1" title={getAttachmentName(attachment)}>
+                                                        {getAttachmentName(attachment)}
                                                     </h4>
                                                     <div className="text-xs text-gray-500">
                                                         {new Date(attachment.created_at).toLocaleString()}

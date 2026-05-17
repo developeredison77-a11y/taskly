@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2, CalendarDays, Package, FileText, ArrowLeft } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/utils/currency';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 
 interface InvoiceItem {
     type: 'task';
@@ -69,6 +70,39 @@ export default function InvoiceForm({ invoice, projects, clients, currencies, ta
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [projectClients, setProjectClients] = useState([]);
     const [availableClients, setAvailableClients] = useState([]);
+    const [invoiceFiles, setInvoiceFiles] = useState<TaskFileItem[]>([]);
+
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
+
+    useEffect(() => {
+        if (isEdit && invoice?.attachments) {
+            const mapped = (invoice.attachments || []).map((attachment: any) => ({
+                id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                attachment_id: attachment.id,
+                name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+                url: attachment.media_item?.url || attachment.mediaItem?.url || route('invoice-attachments.preview', attachment.id),
+                thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || route('invoice-attachments.preview', attachment.id),
+                preview_url: route('invoice-attachments.preview', attachment.id),
+                download_url: route('invoice-attachments.download', attachment.id),
+                mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+                size: getAttachmentSize(attachment)
+            }));
+            setInvoiceFiles(mapped);
+        }
+    }, [isEdit, invoice]);
 
     const breadcrumbs = [
         { title: t('Dashboard'), href: route('dashboard') },
@@ -186,7 +220,10 @@ export default function InvoiceForm({ invoice, projects, clients, currencies, ta
         const submitData = {
             ...formData,
             client_id: formData.client_id === 'none' ? null : formData.client_id,
-            items: items.filter(item => item.task_id !== null && item.task_id !== 'no-tasks')
+            items: items.filter(item => item.task_id !== null && item.task_id !== 'no-tasks'),
+            media_item_ids: invoiceFiles
+                .map((file) => file.media_id || file.id)
+                .filter((id) => !!id)
         };
 
         if (isEdit) {
@@ -413,6 +450,53 @@ export default function InvoiceForm({ invoice, projects, clients, currencies, ta
                                 )}
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                            <FileText className="h-5 w-5" />
+                            {t('Files')}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <TaskFileUpload
+                            mode="edit"
+                            files={invoiceFiles}
+                            onFilesChange={(nextFiles) => {
+                                if (!isEdit) {
+                                    setInvoiceFiles(nextFiles);
+                                    return;
+                                }
+
+                                const existingIds = new Set(invoiceFiles.map((file) => file.id));
+                                const addedIds = nextFiles.map((file) => file.id).filter((id) => !existingIds.has(id));
+
+                                if (addedIds.length === 0) return;
+
+                                router.post(route('invoice-attachments.store', invoice.id), {
+                                    media_item_ids: addedIds
+                                }, {
+                                    onSuccess: () => {
+                                        setInvoiceFiles(nextFiles);
+                                    }
+                                });
+                            }}
+                            onRemoveFile={(file) => {
+                                if (!isEdit) {
+                                    setInvoiceFiles((prev) => prev.filter((f) => f.id !== file.id));
+                                    return;
+                                }
+
+                                if (!file.attachment_id) return;
+                                router.delete(route('invoice-attachments.destroy', file.attachment_id), {
+                                    onSuccess: () => {
+                                        setInvoiceFiles((prev) => prev.filter((f) => f.id !== file.id));
+                                    }
+                                });
+                            }}
+                        />
                     </CardContent>
                 </Card>
 

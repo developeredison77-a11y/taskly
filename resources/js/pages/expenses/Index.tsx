@@ -9,12 +9,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Plus, Search, Filter, Eye, Edit, Copy, Trash2, LayoutGrid, List, Receipt, Calendar, User as UserIcon, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus, Search, Filter, Eye, Edit, Copy, Trash2, LayoutGrid, List, Receipt, Calendar, User as UserIcon, CheckCircle, XCircle, Clock, AlertCircle, FileText } from 'lucide-react';
 import { PageTemplate } from '@/components/page-template';
 import { CrudTable } from '@/components/CrudTable';
 import { hasPermission } from '@/utils/authorization';
 import ExpenseFormModal from '@/components/expenses/ExpenseFormModal';
 import { CrudDeleteModal } from '@/components/CrudDeleteModal';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 import { useTranslation } from 'react-i18next';
 
 
@@ -45,6 +47,7 @@ interface Expense {
     created_at: string;
     can_edit?: boolean;
     can_delete?: boolean;
+    attachments?: any[];
 }
 
 export default function ExpenseIndex() {
@@ -83,6 +86,8 @@ export default function ExpenseIndex() {
     const [currentExpense, setCurrentExpense] = useState<Expense | null>(null);
     const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
     const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null);
+    const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
+    const [filesExpense, setFilesExpense] = useState<Expense | null>(null);
 
 
 
@@ -156,6 +161,10 @@ export default function ExpenseIndex() {
                     }
                 });
                 break;
+            case 'files':
+                setFilesExpense(expense);
+                setIsFilesModalOpen(true);
+                break;
             case 'delete':
                 setDeleteExpense(expense);
                 break;
@@ -194,6 +203,33 @@ export default function ExpenseIndex() {
         }
         return amount || 0;
     };
+
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
+
+    const mapAttachmentToTaskFile = (attachment: any): TaskFileItem => ({
+        id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        attachment_id: attachment.id,
+        name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+        url: attachment.media_item?.url || attachment.mediaItem?.url || route('expense-attachments.preview', attachment.id),
+        thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || route('expense-attachments.preview', attachment.id),
+        preview_url: route('expense-attachments.preview', attachment.id),
+        download_url: route('expense-attachments.download', attachment.id),
+        mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+        size: getAttachmentSize(attachment)
+    });
 
     const pageActions = [];
 
@@ -520,6 +556,19 @@ export default function ExpenseIndex() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
+                                                    onClick={() => handleAction('files', expense)}
+                                                    className="text-purple-500 hover:text-purple-700 h-8 w-8"
+                                                >
+                                                    <FileText className="h-4 w-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>{t('Files')}</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
                                                     onClick={() => handleAction('view', expense)}
                                                     className="text-blue-500 hover:text-blue-700 h-8 w-8"
                                                 >
@@ -672,6 +721,13 @@ export default function ExpenseIndex() {
                         ]}
                         actions={[
                             {
+                                label: t('Files'),
+                                icon: 'FileText',
+                                action: 'files',
+                                className: 'text-purple-500 hover:text-purple-700',
+                                condition: () => true
+                            },
+                            {
                                 label: t('View'),
                                 icon: 'Eye',
                                 action: 'view',
@@ -762,6 +818,25 @@ export default function ExpenseIndex() {
                 mode={modalMode}
                 redirectUrl={route('expenses.index')}
             />
+
+            <Dialog open={isFilesModalOpen} onOpenChange={(open) => {
+                setIsFilesModalOpen(open);
+                if (!open) setFilesExpense(null);
+            }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{t('Files')} {filesExpense?.title ? `- ${filesExpense.title}` : ''}</DialogTitle>
+                    </DialogHeader>
+                    {filesExpense?.attachments?.length ? (
+                        <TaskFileUpload
+                            mode="view"
+                            files={(filesExpense.attachments || []).map(mapAttachmentToTaskFile)}
+                        />
+                    ) : (
+                        <div className="text-sm text-muted-foreground">{t('No files available')}</div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             <CrudDeleteModal
                 isOpen={!!deleteExpense}

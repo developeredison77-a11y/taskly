@@ -95,6 +95,11 @@ class Invoice extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(InvoiceAttachment::class);
+    }
+
     // Scopes
     public function scopeForWorkspace($query, $workspaceId)
     {

@@ -14,6 +14,8 @@ class ContractAttachment extends BaseModel
     protected $fillable = [
         'workspace_id',
         'contract_id',
+        'media_item_id',
+        'uploaded_by',
         'files',
     ];
 
@@ -25,6 +27,11 @@ class ContractAttachment extends BaseModel
     public function media(): BelongsTo
     {
         return $this->belongsTo(\Spatie\MediaLibrary\MediaCollections\Models\Media::class, 'media_id');
+    }
+
+    public function mediaItem(): BelongsTo
+    {
+        return $this->belongsTo(MediaItem::class, 'media_item_id');
     }
 
     public function uploader(): BelongsTo

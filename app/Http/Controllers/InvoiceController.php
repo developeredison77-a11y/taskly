@@ -8,8 +8,11 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\ProjectExpense;
 use App\Models\TimesheetEntry;
+use App\Models\InvoiceAttachment;
 use App\Events\InvoiceCreated;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class InvoiceController extends Controller
@@ -22,6 +25,10 @@ class InvoiceController extends Controller
        
         $query = Invoice::with(['project:id,title', 'client:id,name,avatar', 'creator:id,name', 'payments'])
             ->where('workspace_id', $workspace->id);
+
+        if ($this->hasInvoiceAttachmentsTable()) {
+            $query->withCount('attachments');
+        }
 
         // Apply role-based filtering
         if (in_array($userWorkspaceRole, ['manager', 'member'])) {
@@ -142,9 +149,13 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function show(Invoice $invoice)
+    public function show(Request $request, Invoice $invoice)
     {
-        $invoice->load(['project', 'client', 'creator', 'items.task', 'items.expense', 'items.timesheetEntry', 'payments']);
+        $loadRelations = ['project', 'client', 'creator', 'items.task', 'items.expense', 'items.timesheetEntry', 'payments'];
+        if ($this->hasInvoiceAttachmentsTable()) {
+            $loadRelations[] = 'attachments.mediaItem';
+        }
+        $invoice->load($loadRelations);
         $user = auth()->user();
         $workspace = $user->currentWorkspace;
         $userWorkspaceRole = $workspace->getMemberRole($user);
@@ -176,6 +187,12 @@ class InvoiceController extends Controller
             ->pluck('value', 'key')
             ->toArray();
         
+        if ($request->expectsJson()) {
+            return response()->json([
+                'invoice' => $invoice
+            ]);
+        }
+
         return Inertia::render('invoices/Show', [
             'invoice' => $invoiceData,
             'userWorkspaceRole' => $userWorkspaceRole,
@@ -204,6 +221,8 @@ class InvoiceController extends Controller
             'items.*.type' => 'required|in:task',
             'items.*.amount' => 'required|numeric|min:0',
             'items.*.task_id' => 'required|exists:tasks,id',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id',
         ]);
 
         $project = Project::findOrFail($validated['project_id']);
@@ -258,6 +277,29 @@ class InvoiceController extends Controller
             ]);
         }
 
+        $mediaItemIds = collect($validated['media_item_ids'] ?? [])->filter()->unique()->values();
+        if ($this->hasInvoiceAttachmentsTable() && $mediaItemIds->isNotEmpty()) {
+            foreach ($mediaItemIds as $mediaItemId) {
+                DB::table('invoice_attachments')->updateOrInsert(
+                    [
+                        'invoice_id' => $invoice->id,
+                        'media_item_id' => $mediaItemId,
+                    ],
+                    [
+                        'uploaded_by' => auth()->id(),
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]
+                );
+            }
+
+            \Log::info('Invoice attachments saved on create', [
+                'invoice_id' => $invoice->id,
+                'media_item_ids' => $mediaItemIds->values()->all(),
+                'saved_count' => DB::table('invoice_attachments')->where('invoice_id', $invoice->id)->count(),
+            ]);
+        }
+
         // Fire event for Slack notification
         if (!config('app.is_demo', true)) {
             event(new InvoiceCreated($invoice));
@@ -286,6 +328,8 @@ class InvoiceController extends Controller
             'items.*.task_id' => 'nullable|exists:tasks,id',
             'items.*.expense_id' => 'nullable|exists:project_expenses,id',
             'items.*.timesheet_entry_id' => 'nullable|exists:timesheet_entries,id',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id'
         ]);
 
         // Prepare tax data
@@ -322,6 +366,39 @@ class InvoiceController extends Controller
                 'expense_id' => $item['expense_id'] ?? null,
                 'timesheet_entry_id' => $item['timesheet_entry_id'] ?? null,
                 'sort_order' => $index + 1,
+            ]);
+        }
+
+        if ($this->hasInvoiceAttachmentsTable() && isset($validated['media_item_ids'])) {
+            $incomingMediaIds = collect($validated['media_item_ids'])->filter()->unique()->values();
+
+            if ($incomingMediaIds->isNotEmpty()) {
+                DB::table('invoice_attachments')
+                    ->where('invoice_id', $invoice->id)
+                    ->whereNotIn('media_item_id', $incomingMediaIds)
+                    ->delete();
+
+                foreach ($incomingMediaIds as $mediaItemId) {
+                    DB::table('invoice_attachments')->updateOrInsert(
+                        [
+                            'invoice_id' => $invoice->id,
+                            'media_item_id' => $mediaItemId,
+                        ],
+                        [
+                            'uploaded_by' => auth()->id(),
+                            'updated_at' => now(),
+                            'created_at' => now(),
+                        ]
+                    );
+                }
+            } else {
+                DB::table('invoice_attachments')->where('invoice_id', $invoice->id)->delete();
+            }
+
+            \Log::info('Invoice attachments synced on update', [
+                'invoice_id' => $invoice->id,
+                'media_item_ids' => $incomingMediaIds->values()->all(),
+                'saved_count' => DB::table('invoice_attachments')->where('invoice_id', $invoice->id)->count(),
             ]);
         }
 
@@ -379,7 +456,11 @@ class InvoiceController extends Controller
 
     public function edit(Invoice $invoice)
     {
-        $invoice->load(['items']);
+        $loadRelations = ['items'];
+        if ($this->hasInvoiceAttachmentsTable()) {
+            $loadRelations[] = 'attachments.mediaItem';
+        }
+        $invoice->load($loadRelations);
 
         $user = auth()->user();
         $workspace = $user->currentWorkspace;
@@ -500,5 +581,14 @@ class InvoiceController extends Controller
             'expenses' => $expenses,
             'timesheet_entries' => $timesheetEntries
         ]);
+    }
+
+    private function hasInvoiceAttachmentsTable(): bool
+    {
+        try {
+            return Schema::hasTable('invoice_attachments');
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 }

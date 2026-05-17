@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Plus, Search, Filter, Eye, Edit, Trash2, LayoutGrid, List, Copy, Send, Download } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus, Search, Filter, Eye, Edit, Trash2, LayoutGrid, List, Copy, FileText } from 'lucide-react';
 import { PageTemplate } from '@/components/page-template';
 import { CrudFormModal } from '@/components/CrudFormModal';
 import { CrudDeleteModal } from '@/components/CrudDeleteModal';
@@ -15,6 +16,7 @@ import { CrudTable } from '@/components/CrudTable';
 import { toast } from '@/components/custom-toast';
 import { hasPermission } from '@/utils/authorization';
 import { useTranslation } from 'react-i18next';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 
 interface Contract {
     id: number;
@@ -42,6 +44,7 @@ interface Contract {
     notes_count: number;
     comments_count: number;
     attachments_count: number;
+    attachments?: any[];
     created_at: string;
 }
 
@@ -74,6 +77,37 @@ export default function ContractsIndex() {
     const [formClientId, setFormClientId] = useState<string | null>(null);
     const [formProjects, setFormProjects] = useState([]);
     const [modalKey, setModalKey] = useState(0);
+    const [contractFiles, setContractFiles] = useState<TaskFileItem[]>([]);
+    const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
+    const [filesContract, setFilesContract] = useState<any | null>(null);
+    const contractFilesRef = useRef<TaskFileItem[]>([]);
+    const formModeRef = useRef<'create' | 'edit' | 'view'>('create');
+
+    contractFilesRef.current = contractFiles;
+    formModeRef.current = formMode;
+
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
+
+    const mapAttachmentToTaskFile = (attachment: any): TaskFileItem => ({
+        id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id || attachment.id,
+        media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        attachment_id: attachment.id,
+        name: attachment.media_item?.name || attachment.mediaItem?.name || attachment.name || 'file',
+        url: attachment.media_item?.url || attachment.mediaItem?.url || attachment.url || route('contract-attachments.preview', attachment.id),
+        thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || attachment.url || route('contract-attachments.preview', attachment.id),
+        preview_url: route('contract-attachments.preview', attachment.id),
+        download_url: route('contract-attachments.download', attachment.id),
+        mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || attachment.mime_type || '',
+        size: getAttachmentSize(attachment)
+    });
 
     useEffect(() => {
         if (flash?.success) {
@@ -172,15 +206,47 @@ export default function ContractsIndex() {
         router.get(route('contracts.index'), params, { preserveState: false, preserveScroll: false });
     };
 
-    const handleAction = (action: string, item: any) => {
+    const handleAction = async (action: string, item: any) => {
         setCurrentItem(item);
         switch (action) {
+            case 'files': {
+                try {
+                    const response = await fetch(route('contracts.show', item.id), {
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin'
+                    });
+                    const data = await response.json();
+                    setFilesContract(data.contract);
+                    setIsFilesModalOpen(true);
+                } catch (error) {
+                    toast.error(t('Failed to load contract files'));
+                }
+                break;
+            }
             case 'view':
                 router.get(route('contracts.show', item.id));
                 break;
-            case 'edit':
+            case 'edit': {
                 setFormMode('edit');
-                const clientId = item.client_id?.toString() || null;
+                let editableItem = item;
+                try {
+                    const response = await fetch(route('contracts.show', item.id), {
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin'
+                    });
+                    const data = await response.json();
+                    editableItem = data.contract || item;
+                } catch (error) {
+                    // Fall back to row payload
+                }
+
+                const clientId = editableItem.client_id?.toString() || null;
                 setFormClientId(clientId);
                 if (clientId) {
                     const clientProjects = projects?.filter((project: any) => 
@@ -190,9 +256,12 @@ export default function ContractsIndex() {
                 } else {
                     setFormProjects([]);
                 }
+                setCurrentItem(editableItem);
+                setContractFiles((editableItem.attachments || []).map(mapAttachmentToTaskFile));
                 setModalKey(prev => prev + 1);
                 setIsFormModalOpen(true);
                 break;
+            }
             case 'delete':
                 setIsDeleteModalOpen(true);
                 break;
@@ -220,14 +289,27 @@ export default function ContractsIndex() {
         setFormMode('create');
         setFormClientId(null);
         setFormProjects([]);
+        setContractFiles([]);
         setModalKey(prev => prev + 1);
         setIsFormModalOpen(true);
     };
     
     const handleFormSubmit = (formData: any) => {
+        const mediaItemIds = Array.from(
+            new Set(
+                contractFiles
+                    .map((file) => Number(file.media_id ?? file.id))
+                    .filter((id) => Number.isFinite(id) && id > 0)
+            )
+        );
+        const submitData = {
+            ...formData,
+            media_item_ids: mediaItemIds
+        };
+
         if (formMode === 'create') {
             toast.loading(t('Creating contract...'));
-            router.post(route('contracts.store'), formData, {
+            router.post(route('contracts.store'), submitData, {
                 onSuccess: () => {
                     setIsFormModalOpen(false);
                     toast.dismiss();
@@ -239,7 +321,7 @@ export default function ContractsIndex() {
             });
         } else if (formMode === 'edit') {
             toast.loading(t('Updating contract...'));
-            router.put(route('contracts.update', currentItem.id), formData, {
+            router.put(route('contracts.update', currentItem.id), submitData, {
                 onSuccess: () => {
                     setIsFormModalOpen(false);
                     toast.dismiss();
@@ -310,6 +392,124 @@ export default function ContractsIndex() {
         { title: t('Dashboard'), href: route('dashboard') },
         { title: t('Contracts') }
     ];
+
+    const contractInitialData = useMemo(() => {
+        if (currentItem) return currentItem;
+        return { status: 'pending' };
+    }, [currentItem]);
+
+    const contractFormConfig = useMemo(() => ({
+        fields: [
+            { name: 'subject', label: t('Subject'), type: 'text', required: true },
+            { name: 'description', label: t('Description'), type: 'textarea' },
+            {
+                name: 'contract_type_id',
+                label: t('Contract Type'),
+                type: 'select',
+                options: contractTypes?.map((type: any) => ({ value: type.id, label: type.name })) || [],
+                required: true
+            },
+            { name: 'contract_value', label: t('Contract Value'), type: 'number', min: 0, required: true },
+            { name: 'start_date', label: t('Start Date'), type: 'date', required: true },
+            { name: 'end_date', label: t('End Date'), type: 'date', required: true },
+            {
+                name: 'client_id',
+                label: t('Client'),
+                type: 'select',
+                options: clients?.map((client: any) => ({ value: client.id, label: client.name })) || [],
+                required: true
+            },
+            {
+                name: 'project_id',
+                label: t('Project'),
+                type: 'select',
+                options: [],
+                placeholder: t('Select project'),
+                render: (field: any, formData: any, handleChange: any) => {
+                    const resolvedClientId =
+                        formData.client_id ??
+                        currentItem?.client_id ??
+                        currentItem?.client?.id ??
+                        null;
+                    const clientId = resolvedClientId ? String(resolvedClientId) : '';
+                    const filteredProjects = clientId
+                        ? projects?.filter((project: any) => {
+                            if (Array.isArray(project.clients) && project.clients.length > 0) {
+                                return project.clients.some((client: any) => String(client.id) === clientId);
+                            }
+                            return String(project.client_id ?? '') === clientId;
+                        }) || []
+                        : [];
+
+                    const projectOptions = filteredProjects.map((project: any) => ({
+                        value: project.id,
+                        label: project.title
+                    }));
+
+                    return (
+                        <Select
+                            value={formData[field.name] ? String(formData[field.name]) : ''}
+                            onValueChange={(value) => handleChange(field.name, value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder={t('Select project')} />
+                            </SelectTrigger>
+                            <SelectContent className="z-[60000]">
+                                {projectOptions.length > 0 ? (
+                                    projectOptions.map((option: any) => (
+                                        <SelectItem key={option.value} value={String(option.value)}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))
+                                ) : (
+                                    <SelectItem value="__no_projects" disabled>
+                                        {clientId ? t('No projects available') : t('Select client first')}
+                                    </SelectItem>
+                                )}
+                            </SelectContent>
+                        </Select>
+                    );
+                }
+            },
+            {
+                name: 'attachments',
+                label: t('Files'),
+                type: 'custom',
+                render: () => (
+                    <div className="space-y-2">
+                        <Label>{t('Files')}</Label>
+                        <TaskFileUpload
+                            mode={formModeRef.current === 'view' ? 'view' : 'edit'}
+                            files={contractFilesRef.current}
+                            onFilesChange={(nextFiles) => {
+                                setContractFiles(nextFiles);
+                            }}
+                            onRemoveFile={(file) => {
+                                if (formModeRef.current === 'create') {
+                                    setContractFiles((prev) => prev.filter((f) => f.id !== file.id));
+                                    return;
+                                }
+
+                                if (!file.attachment_id) {
+                                    setContractFiles((prev) => prev.filter((f) => f.id !== file.id));
+                                    return;
+                                }
+
+                                router.delete(route('contract-attachments.destroy', file.attachment_id), {
+                                    preserveState: true,
+                                    preserveScroll: true,
+                                    onSuccess: () => {
+                                        setContractFiles((prev) => prev.filter((f) => f.id !== file.id));
+                                    }
+                                });
+                            }}
+                        />
+                    </div>
+                )
+            }
+        ],
+        modalSize: 'xl'
+    }), [t, contractTypes, clients, projects, currentItem]);
     
     return (
         <PageTemplate 
@@ -642,6 +842,21 @@ export default function ContractsIndex() {
                         </CardContent>
                         
                         <CardFooter className="flex justify-end gap-1 pt-1 pb-1 mt-auto">
+                            {hasPermission(permissions, 'contract_view') && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleAction('files', contract)}
+                                            className="text-slate-500 hover:text-slate-700 h-8 w-8"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{t('Files')}</TooltipContent>
+                                </Tooltip>
+                            )}
                             {hasPermission(permissions, 'contract_create') && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -785,6 +1000,13 @@ export default function ContractsIndex() {
                         ]}
                         actions={[
                             {
+                                label: t('Files'),
+                                icon: 'FileText',
+                                action: 'files',
+                                className: 'text-slate-500 hover:text-slate-700',
+                                condition: () => hasPermission(permissions, 'contract_view')
+                            },
+                            {
                                 label: t('Duplicate'),
                                 icon: 'Copy',
                                 action: 'duplicate',
@@ -890,78 +1112,12 @@ export default function ContractsIndex() {
                     setIsFormModalOpen(false);
                     setFormClientId(null);
                     setFormProjects([]);
+                    setContractFiles([]);
                 }}
                 onSubmit={handleFormSubmit}
                 submitButtonText={formMode === 'create' ? t('Create Contract') : t('Update Contract')}
-                formConfig={{
-                    fields: [
-                        { name: 'subject', label: t('Subject'), type: 'text', required: true },
-                        { name: 'description', label: t('Description'), type: 'textarea' },
-                        { 
-                            name: 'contract_type_id', 
-                            label: t('Contract Type'), 
-                            type: 'select',
-                            options: contractTypes?.map((type: any) => ({ value: type.id, label: type.name })) || [],
-                            required: true
-                        },
-                        { name: 'contract_value', label: t('Contract Value'), type: 'number', min: 0, required: true },
-                        { name: 'start_date', label: t('Start Date'), type: 'date', required: true },
-                        { name: 'end_date', label: t('End Date'), type: 'date', required: true },
-                        { 
-                            name: 'client_id', 
-                            label: t('Client'), 
-                            type: 'select',
-                            options: clients?.map((client: any) => ({ value: client.id, label: client.name })) || [],
-                            required: true
-                        },
-                        { 
-                            name: 'project_id', 
-                            label: t('Project'), 
-                            type: 'select',
-                            options: [],
-                            placeholder: t('Select project'),
-                            conditional: (mode: string, formData: any) => {
-                                if (formData.client_id) {
-                                    return true;
-                                }
-                                return false;
-                            },
-                            render: (field: any, formData: any, handleChange: any) => {
-                                const clientId = formData.client_id;
-                                const filteredProjects = clientId ? projects?.filter((project: any) => 
-                                    project.clients?.some((client: any) => client.id?.toString() === clientId.toString())
-                                ) || [] : [];
-                                
-                                const projectOptions = filteredProjects.map((project: any) => ({ 
-                                    value: project.id, 
-                                    label: project.title 
-                                }));
-                                
-                                return (
-                                    <Select
-                                        value={formData[field.name] ? String(formData[field.name]) : ''}
-                                        onValueChange={(value) => handleChange(field.name, value)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder={t('Select project')} />
-                                        </SelectTrigger>
-                                        <SelectContent className="z-[60000]">
-                                            {projectOptions.map((option: any) => (
-                                                <SelectItem key={option.value} value={String(option.value)}>
-                                                    {option.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                );
-                            }
-                        }
-                    ],
-                    modalSize: 'xl'
-                }}
-                initialData={currentItem || {
-                    status: 'pending'
-                }}
+                formConfig={contractFormConfig}
+                initialData={contractInitialData}
                 title={
                     formMode === 'create' 
                         ? t('Add Contract') 
@@ -987,6 +1143,26 @@ export default function ContractsIndex() {
                     t('Related activities')
                 ]}
             />
+
+            <Dialog open={isFilesModalOpen} onOpenChange={(open) => {
+                setIsFilesModalOpen(open);
+                if (!open) setFilesContract(null);
+            }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{t('Files')} {filesContract?.subject ? `- ${filesContract.subject}` : ''}</DialogTitle>
+                    </DialogHeader>
+
+                    {filesContract?.attachments?.length ? (
+                        <TaskFileUpload
+                            mode="view"
+                            files={(filesContract.attachments || []).map(mapAttachmentToTaskFile)}
+                        />
+                    ) : (
+                        <div className="py-10 text-center text-sm text-gray-500">{t('No files available')}</div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </PageTemplate>
     );
 }

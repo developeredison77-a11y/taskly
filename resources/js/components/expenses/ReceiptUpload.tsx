@@ -62,7 +62,7 @@ export default function ReceiptUpload({ expenseId, existingAttachments = [], onU
 
     const deleteAttachment = async (attachmentId: number) => {
         try {
-            const response = await fetch(route('expense-receipts.destroy', attachmentId), {
+            const response = await fetch(route('expense-attachments.destroy', attachmentId), {
                 method: 'DELETE',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -80,7 +80,7 @@ export default function ReceiptUpload({ expenseId, existingAttachments = [], onU
     };
 
     const downloadAttachment = (attachmentId: number) => {
-        window.open(route('expense-receipts.download', attachmentId), '_blank');
+        window.open(route('expense-attachments.download', attachmentId), '_blank');
     };
 
     const formatFileSize = (bytes: number) => {

@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\BudgetCategory;
 use App\Traits\HasPermissionChecks;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class ProjectExpenseController extends Controller
@@ -21,7 +22,7 @@ class ProjectExpenseController extends Controller
 
         $userWorkspaceRole = $workspace->getMemberRole($user);
 
-        $query = ProjectExpense::with(['project', 'budgetCategory', 'submitter', 'task'])
+        $query = ProjectExpense::with(['project', 'budgetCategory', 'submitter', 'task', 'attachments.mediaItem'])
             ->whereHas('project', function ($q) use ($workspace) {
                 $q->where('workspace_id', $workspace->id);
             });
@@ -155,7 +156,8 @@ class ProjectExpenseController extends Controller
             'budgetCategory',
             'submitter',
             'task',
-            'approvals.approver'
+            'approvals.approver',
+            'attachments.mediaItem'
         ]);
 
         $user = auth()->user();
@@ -200,15 +202,36 @@ class ProjectExpenseController extends Controller
             'amount' => 'required|numeric|min:0',
             'expense_date' => 'required|date|before_or_equal:today',
             'title' => 'required|string|max:255',
-            'description' => 'nullable|string'
+            'description' => 'nullable|string',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id'
         ]);
 
+        $expenseData = collect($validated)->except(['media_item_ids'])->toArray();
         $expense = ProjectExpense::create([
-            ...$validated,
+            ...$expenseData,
             'submitted_by' => auth()->id(),
             'status' => 'pending',
             'currency' => 'USD'
         ]);
+
+        $mediaItemIds = collect($validated['media_item_ids'] ?? [])->filter()->unique()->values();
+        if ($mediaItemIds->isNotEmpty()) {
+            foreach ($mediaItemIds as $mediaItemId) {
+                DB::table('expense_attachments')->updateOrInsert(
+                    [
+                        'project_expense_id' => $expense->id,
+                        'media_item_id' => $mediaItemId
+                    ],
+                    [
+                        'uploaded_by' => auth()->id(),
+                        'attachment_type' => 'receipt',
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]
+                );
+            }
+        }
 
         // Load relationships for email
         $expense->load(['project.clients', 'budgetCategory', 'submitter']);
@@ -231,7 +254,9 @@ class ProjectExpenseController extends Controller
             'amount' => 'required|numeric|min:0',
             'expense_date' => 'required|date|before_or_equal:today',
             'title' => 'required|string|max:255',
-            'description' => 'nullable|string'
+            'description' => 'nullable|string',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id'
         ]);
 
         // If expense was requires_info, change back to pending when updated
@@ -239,7 +264,35 @@ class ProjectExpenseController extends Controller
             $validated['status'] = 'pending';
         }
 
-        $expense->update($validated);
+        $expenseData = collect($validated)->except(['media_item_ids'])->toArray();
+        $expense->update($expenseData);
+
+        if (isset($validated['media_item_ids'])) {
+            $incomingMediaIds = collect($validated['media_item_ids'])->filter()->unique()->values();
+            if ($incomingMediaIds->isNotEmpty()) {
+                DB::table('expense_attachments')
+                    ->where('project_expense_id', $expense->id)
+                    ->whereNotIn('media_item_id', $incomingMediaIds->all())
+                    ->delete();
+
+                foreach ($incomingMediaIds as $mediaItemId) {
+                    DB::table('expense_attachments')->updateOrInsert(
+                        [
+                            'project_expense_id' => $expense->id,
+                            'media_item_id' => $mediaItemId
+                        ],
+                        [
+                            'uploaded_by' => auth()->id(),
+                            'attachment_type' => 'receipt',
+                            'updated_at' => now(),
+                            'created_at' => now(),
+                        ]
+                    );
+                }
+            } else {
+                DB::table('expense_attachments')->where('project_expense_id', $expense->id)->delete();
+            }
+        }
 
         // Load relationships for email
         $expense->load(['project.clients', 'budgetCategory', 'submitter']);

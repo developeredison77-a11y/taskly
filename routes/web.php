@@ -979,10 +979,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         })->middleware('permission:expense_approval_view_any')->name('expense-workflows.my-approvals');
         Route::get('api/my-approvals', [\App\Http\Controllers\ExpenseWorkflowController::class, 'myApprovals'])->middleware('permission:expense_approval_view_any')->name('api.expense-workflows.my-approvals');
 
-        // Receipt management
-        Route::post('expenses/{expense}/receipts', [\App\Http\Controllers\ExpenseReceiptController::class, 'upload'])->middleware('permission:expense_add_attachments')->name('expense-receipts.upload');
-        Route::delete('expense-attachments/{attachment}', [\App\Http\Controllers\ExpenseReceiptController::class, 'destroy'])->middleware('permission:expense_add_attachments')->name('expense-receipts.destroy');
-        Route::get('expense-attachments/{attachment}/download', [\App\Http\Controllers\ExpenseReceiptController::class, 'download'])->middleware('permission:expense_add_attachments')->name('expense-receipts.download');
+        // Expense attachments
+        Route::post('expenses/{expense}/attachments', [\App\Http\Controllers\ExpenseReceiptController::class, 'store'])->middleware('permission:expense_add_attachments')->name('expense-attachments.store');
+        Route::delete('expense-attachments/{attachment}', [\App\Http\Controllers\ExpenseReceiptController::class, 'destroy'])->middleware('permission:expense_add_attachments')->name('expense-attachments.destroy');
+        Route::get('expense-attachments/{attachment}/download', [\App\Http\Controllers\ExpenseReceiptController::class, 'download'])->middleware('permission:expense_view')->name('expense-attachments.download');
+        Route::get('expense-attachments/{attachment}/preview', [\App\Http\Controllers\ExpenseReceiptController::class, 'preview'])->middleware('permission:expense_view')->name('expense-attachments.preview');
+        Route::post('expenses/{expense}/receipts', [\App\Http\Controllers\ExpenseReceiptController::class, 'store'])->middleware('permission:expense_add_attachments')->name('expense-receipts.upload');
 
         // Budget Reports & Dashboard
         Route::get('reports/budget-vs-actual', [\App\Http\Controllers\ExpenseReportController::class, 'budgetVsActual'])->middleware('permission:report_budget_vs_actual')->name('reports.budget-vs-actual');
@@ -1007,6 +1009,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('invoices/{invoice}/mark-paid', [InvoiceController::class, 'markAsPaid'])->middleware('permission:invoice_manage_payments')->name('invoices.mark-paid');
         Route::post('invoices/{invoice}/send', [InvoiceController::class, 'send'])->middleware('permission:invoice_send')->name('invoices.send');
         Route::get('api/projects/{project}/invoice-data', [InvoiceController::class, 'getProjectInvoiceData'])->middleware('permission:invoice_view_any')->name('api.projects.invoice-data');
+        Route::post('invoices/{invoice}/attachments', [\App\Http\Controllers\InvoiceAttachmentController::class, 'store'])->middleware('permission:invoice_update')->name('invoice-attachments.store');
+        Route::delete('invoice-attachments/{invoiceAttachment}', [\App\Http\Controllers\InvoiceAttachmentController::class, 'destroy'])->middleware('permission:invoice_update')->name('invoice-attachments.destroy');
+        Route::get('invoice-attachments/{invoiceAttachment}/download', [\App\Http\Controllers\InvoiceAttachmentController::class, 'download'])->middleware('permission:invoice_view')->name('invoice-attachments.download');
+        Route::get('invoice-attachments/{invoiceAttachment}/preview', [\App\Http\Controllers\InvoiceAttachmentController::class, 'preview'])->middleware('permission:invoice_view')->name('invoice-attachments.preview');
 
         // Payment gateway specific routes
         Route::post('razorpay/create-order', [RazorpayController::class, 'createOrder'])->name('razorpay.create-order');
@@ -1116,6 +1122,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Contract Attachments routes
         Route::post('contracts/{contract}/attachments', [\App\Http\Controllers\ContractController::class, 'fileUpload'])->middleware('permission:contract_attachment_create')->name('contract-attachments.store');
         Route::delete('contract-attachments/{attachment}', [\App\Http\Controllers\ContractController::class, 'fileDelete'])->middleware('permission:contract_attachment_delete')->name('contract-attachments.destroy');
+        Route::get('contract-attachments/{attachment}/preview', [\App\Http\Controllers\ContractController::class, 'filePreview'])->middleware('permission:contract_attachment_download')->name('contract-attachments.preview');
         Route::get('contract-attachments/{attachment}/download', [\App\Http\Controllers\ContractController::class, 'fileDownload'])->middleware('permission:contract_attachment_download')->name('contract-attachments.download');
 
         // Contract Signature routes
