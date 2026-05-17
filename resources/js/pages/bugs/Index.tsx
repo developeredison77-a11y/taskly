@@ -800,6 +800,22 @@ export default function Index({ bugs, projects, statuses, members, filters, user
                                                                                     size="icon" 
                                                                                     onClick={(e) => {
                                                                                         e.stopPropagation();
+                                                                                        handleViewBugFiles(bug.id);
+                                                                                    }}
+                                                                                    className="h-6 w-6 text-slate-500 hover:text-slate-700"
+                                                                                >
+                                                                                    <FileText className="h-3 w-3" />
+                                                                                </Button>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent>{t('Files')}</TooltipContent>
+                                                                        </Tooltip>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <Button 
+                                                                                    variant="ghost" 
+                                                                                    size="icon" 
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
                                                                                         openBugModal(bug);
                                                                                     }}
                                                                                     className="h-6 w-6 text-amber-500 hover:text-amber-700"
@@ -871,12 +887,10 @@ export default function Index({ bugs, projects, statuses, members, filters, user
                                                                                 <span>{bug.comments_count}</span>
                                                                             </div>
                                                                         )}
-                                                                        {bug.attachments_count > 0 && (
-                                                                            <div className="flex items-center gap-1">
-                                                                                <Paperclip className="h-3 w-3" />
-                                                                                <span>{bug.attachments_count}</span>
-                                                                            </div>
-                                                                        )}
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Paperclip className="h-3 w-3" />
+                                                                            <span>{bug.attachments_count || 0}</span>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
