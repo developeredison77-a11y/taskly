@@ -128,6 +128,7 @@ export default function StorageSettings({ settings = {} }: StorageSettingsProps)
 'wrl': 'wrl',
 'xla': 'xla',
 'xls': 'xls',
+'xlsx': 'xlsx',
 'xlc': 'xlc',
 'xml': 'xml',
 'zip': 'zip',

@@ -1153,7 +1153,7 @@ if (! function_exists('defaultSettings')) {
 
             // Storage Settings
             'storage_type' => 'local',
-            'storage_file_types' => 'jpg,png,webp,gif,pdf,doc,docx,txt,csv',
+            'storage_file_types' => 'jpg,png,webp,gif,pdf,doc,docx,txt,csv,xls,xlsx',
             'storage_max_upload_size' => '2048',
             'aws_access_key_id' => '',
             'aws_secret_access_key' => '',

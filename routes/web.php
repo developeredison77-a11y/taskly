@@ -822,6 +822,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Task attachments
         Route::post('tasks/{task}/attachments', [\App\Http\Controllers\TaskAttachmentController::class, 'store'])->middleware('permission:task_add_attachments')->name('task-attachments.store');
         Route::delete('task-attachments/{taskAttachment}', [\App\Http\Controllers\TaskAttachmentController::class, 'destroy'])->middleware('permission:task_add_attachments')->name('task-attachments.destroy');
+        Route::get('task-attachments/{taskAttachment}/preview', [\App\Http\Controllers\TaskAttachmentController::class, 'preview'])->middleware('permission:task_add_attachments')->name('task-attachments.preview');
         Route::get('task-attachments/{taskAttachment}/download', [\App\Http\Controllers\TaskAttachmentController::class, 'download'])->middleware('permission:task_add_attachments')->name('task-attachments.download');
 
         // Bug routes

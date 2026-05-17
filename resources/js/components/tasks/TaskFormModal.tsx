@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Task, Project, ProjectMilestone, User } from '@/types';
 import { toast } from '@/components/custom-toast';
 import { useTranslation } from 'react-i18next';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 
 interface Props {
     isOpen: boolean;
@@ -40,6 +41,7 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
     const [currentMembers, setCurrentMembers] = useState<User[]>([]);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [taskFiles, setTaskFiles] = useState<TaskFileItem[]>([]);
 
     // Reset form when task changes
     useEffect(() => {
@@ -61,6 +63,19 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
                 assigned_to: task.assigned_to?.id?.toString() || 'none',
                 is_googlecalendar_sync: task.is_googlecalendar_sync || false
             });
+            const existingFiles: TaskFileItem[] = (((task as any).attachments) || []).map((attachment: any) => ({
+                id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                attachment_id: attachment.id,
+                name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+                url: attachment.media_item?.url || attachment.mediaItem?.url || route('task-attachments.preview', attachment.id),
+                thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || route('task-attachments.preview', attachment.id),
+                preview_url: route('task-attachments.preview', attachment.id),
+                download_url: route('task-attachments.download', attachment.id),
+                mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+                size: attachment.media_item?.size || attachment.mediaItem?.size || 0
+            }));
+            setTaskFiles(existingFiles.filter((file) => !!file.id));
         } else {
             // Create mode - reset to defaults
             setFormData({
@@ -76,6 +91,7 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
             });
             setCurrentMilestones([]);
             setCurrentMembers([]);
+            setTaskFiles([]);
         }
     }, [task, projects, members]);
 
@@ -109,7 +125,8 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
         const submitData = {
             ...formData,
             milestone_id: formData.milestone_id === 'none' ? '' : formData.milestone_id,
-            assigned_to: formData.assigned_to === 'none' ? '' : formData.assigned_to
+            assigned_to: formData.assigned_to === 'none' ? '' : formData.assigned_to,
+            media_item_ids: taskFiles.map((file) => file.id).filter(Boolean)
         };
         
         if (isEditing) {
@@ -139,7 +156,7 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{isEditing ? t('Edit Task') : t('Create Task')}</DialogTitle>
                 </DialogHeader>
@@ -212,7 +229,7 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 {t('Priority')}
@@ -290,6 +307,18 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
                             </label>
                         </div>
                     )}
+
+                    <div>
+                        <TaskFileUpload
+                            files={taskFiles}
+                            mode="edit"
+                            onFilesChange={setTaskFiles}
+                            onRemoveFile={(file) => {
+                                setTaskFiles((prev) => prev.filter((f) => f.id !== file.id));
+                            }}
+                        />
+                        {errors.media_item_ids && <p className="text-sm text-red-600 mt-1">{errors.media_item_ids}</p>}
+                    </div>
 
                     <div className="flex justify-end space-x-2 pt-4">
                         <Button type="button" variant="outline" onClick={onClose}>

@@ -4,9 +4,11 @@ import TaskModal from './TaskModal';
 import TaskFormModal from '@/components/tasks/TaskFormModal';
 import TaskPriority from '@/components/tasks/TaskPriority';
 import TaskStageChanger from '@/components/tasks/TaskStageChanger';
+import TaskAttachments from '@/components/tasks/TaskAttachments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -67,6 +69,8 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
     const [viewMode, setViewMode] = useState<'card' | 'table' | 'kanban'>(filters.view || 'kanban');
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+    const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
+    const [filesTask, setFilesTask] = useState<any | null>(null);
 
     // Show flash messages
     useEffect(() => {
@@ -146,6 +150,9 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
                     }
                 });
                 break;
+            case 'files':
+                handleViewTaskFiles(taskId);
+                break;
             case 'delete':
                 const task = (Array.isArray(tasks) ? tasks : tasks?.data || []).find(t => t.id === taskId);
                 if (task) {
@@ -153,6 +160,18 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
                     setIsDeleteModalOpen(true);
                 }
                 break;
+        }
+    };
+
+    const handleViewTaskFiles = async (taskId: number) => {
+        try {
+            const response = await fetch(route('tasks.show', taskId));
+            const data = await response.json();
+            setFilesTask(data.task);
+            setIsFilesModalOpen(true);
+        } catch (error) {
+            console.error('Failed to load task files:', error);
+            toast.error('Failed to load task files');
         }
     };
 
@@ -377,6 +396,13 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
     ];
 
     const actions = [
+        {
+            label: t('Files'),
+            icon: 'Paperclip',
+            action: 'files',
+            className: 'text-slate-500 hover:text-slate-700',
+            condition: () => true
+        },
         {
             label: t('View'),
             icon: 'Eye',
@@ -1148,6 +1174,28 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
                 itemName={taskToDelete?.title || ''}
                 entityName={t('task')}
             />
+
+            <Dialog open={isFilesModalOpen} onOpenChange={(open) => {
+                setIsFilesModalOpen(open);
+                if (!open) setFilesTask(null);
+            }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{t('Files')} {filesTask?.title ? `- ${filesTask.title}` : ''}</DialogTitle>
+                    </DialogHeader>
+
+                    {filesTask?.attachments?.length > 0 ? (
+                        <TaskAttachments
+                            task={filesTask}
+                            attachments={filesTask.attachments}
+                            canAddAttachments={false}
+                            canManageAttachments={false}
+                        />
+                    ) : (
+                        <div className="py-10 text-center text-sm text-gray-500">{t('No files available')}</div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </PageTemplate>
     );
 }

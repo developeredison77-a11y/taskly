@@ -167,10 +167,16 @@ class MediaController extends Controller
         // Normalize allowed file types to handle case sensitivity
         $allowedTypes = $config['allowed_file_types'] ?? 'jpg,jpeg,png,webp,gif,pdf,doc,docx,zip,rar';
         $normalizedTypes = strtolower($allowedTypes);
+        $normalizedTypeList = collect(explode(',', $normalizedTypes))
+            ->map(fn($type) => trim($type))
+            ->filter()
+            ->merge(['pdf', 'xls', 'xlsx'])
+            ->unique()
+            ->implode(',');
 
         $validator = \Validator::make($request->all(), [
             'files' => 'required|array',
-            'files.*' => ['required', 'file', 'mimes:' . $normalizedTypes, 'max:' . (($config['max_file_size_mb'] ?? 2) * 1024)],
+            'files.*' => ['required', 'file', 'mimes:' . $normalizedTypeList, 'max:' . (($config['max_file_size_mb'] ?? 2) * 1024)],
         ], [
             'files.*.image' => __('Only image files are allowed.'),
             'files.*.mimes' => __('Only these file types are allowed: :type', [

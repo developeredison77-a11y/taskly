@@ -4,14 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskAttachment;
-use App\Models\MediaItem;
+use App\Services\TaskAttachmentFileService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class TaskAttachmentController extends Controller
 {
     use AuthorizesRequests;
+    
+    public function __construct(private TaskAttachmentFileService $taskAttachmentFileService)
+    {
+    }
+
     public function store(Request $request, Task $task)
     {
         $validated = $request->validate([
@@ -33,11 +37,7 @@ class TaskAttachmentController extends Controller
 
     public function destroy(TaskAttachment $taskAttachment)
     {
-        // Check if user can access the workspace
-        $workspace = $taskAttachment->task->project->workspace;
-        if (!$workspace->members()->where('user_id', auth()->id())->exists()) {
-            abort(403, 'Unauthorized');
-        }
+        $this->taskAttachmentFileService->authorizeWorkspaceAccess($taskAttachment, auth()->id());
 
         $taskAttachment->delete();
 
@@ -46,37 +46,13 @@ class TaskAttachmentController extends Controller
 
     public function download(TaskAttachment $taskAttachment)
     {
-        // Skip authorization for now - just check if user can access the workspace
-        $workspace = $taskAttachment->task->project->workspace;
-        if (!$workspace->members()->where('user_id', auth()->id())->exists()) {
-            abort(403, 'Unauthorized');
-        }
-        
-        $mediaItem = $taskAttachment->mediaItem;
-        
-        if (!$mediaItem) {
-            abort(404, 'Media item not found');
-        }
-        
-        // For media library items, download from URL
-        if ($mediaItem->url) {
-            $headers = [
-                'Content-Type' => $mediaItem->mime_type,
-                'Content-Disposition' => 'attachment; filename="' . $mediaItem->name . '"',
-            ];
-            return response()->streamDownload(function() use ($mediaItem) {
-                echo file_get_contents($mediaItem->url);
-            }, $mediaItem->name, $headers);
-        }
-        
-        // For uploaded files, check path and download
-        if (!$mediaItem->path || !Storage::disk($mediaItem->disk ?? 'public')->exists($mediaItem->path)) {
-            abort(404, 'File not found');
-        }
+        $this->taskAttachmentFileService->authorizeWorkspaceAccess($taskAttachment, auth()->id());
+        return $this->taskAttachmentFileService->streamDownload($taskAttachment);
+    }
 
-        return Storage::disk($mediaItem->disk ?? 'public')->download(
-            $mediaItem->path,
-            $mediaItem->name
-        );
+    public function preview(TaskAttachment $taskAttachment)
+    {
+        $this->taskAttachmentFileService->authorizeWorkspaceAccess($taskAttachment, auth()->id());
+        return $this->taskAttachmentFileService->streamPreview($taskAttachment);
     }
 }

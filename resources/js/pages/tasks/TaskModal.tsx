@@ -12,7 +12,7 @@ import { Calendar, User, MessageSquare, CheckSquare, Paperclip, Edit, Save, X } 
 import { Task, User as UserType, TaskStage, ProjectMilestone } from '@/types';
 import TaskComments from '@/components/tasks/TaskComments';
 import TaskChecklist from '@/components/tasks/TaskChecklist';
-import TaskAttachments from '@/components/tasks/TaskAttachments';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 import { toast } from '@/components/custom-toast';
 
 interface Props {
@@ -135,9 +135,9 @@ export default function TaskModal({ task, isOpen, onClose, members, stages, mile
                     <DialogTitle>{currentTask.title}</DialogTitle>
                 </DialogHeader>
 
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Main Content */}
-                    <div className="col-span-2 space-y-6">
+                    <div className="lg:col-span-2 space-y-6">
                         {/* Description */}
                         <div>
                             <h3 className="text-sm font-medium text-gray-900 mb-2">{t('Description')}</h3>
@@ -184,13 +184,20 @@ export default function TaskModal({ task, isOpen, onClose, members, stages, mile
                             </TabsContent>
 
                             <TabsContent value="attachments" className="space-y-4">
-                                <TaskAttachments 
-                                    task={currentTask} 
-                                    attachments={currentTask.attachments || []} 
-                                    availableMedia={currentTask.project?.workspace?.media || []}
-                                    onUpdate={refreshTask}
-                                    canAddAttachments={workspaceRole !== 'client' && workspaceRole !== 'member'}
-                                    canManageAttachments={workspaceRole !== 'client' && workspaceRole !== 'member'}
+                                <TaskFileUpload
+                                    mode="view"
+                                    files={(currentTask.attachments || []).map((attachment: any): TaskFileItem => ({
+                                        id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                                        media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+                                        attachment_id: attachment.id,
+                                        name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+                                        url: attachment.media_item?.url || attachment.mediaItem?.url || route('task-attachments.preview', attachment.id),
+                                        thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || route('task-attachments.preview', attachment.id),
+                                        preview_url: route('task-attachments.preview', attachment.id),
+                                        download_url: route('task-attachments.download', attachment.id),
+                                        mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+                                        size: attachment.media_item?.size || attachment.mediaItem?.size || 0
+                                    }))}
                                 />
                             </TabsContent>
                         </Tabs>

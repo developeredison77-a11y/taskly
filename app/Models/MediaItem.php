@@ -51,6 +51,7 @@ class MediaItem extends Model implements HasMedia
     {
         $config = StorageConfigService::getStorageConfig();
         $allowedExtensions = array_map('trim', explode(',', strtolower($config['allowed_file_types'])));
+        $allowedExtensions = array_values(array_unique(array_merge($allowedExtensions, ['pdf', 'xls', 'xlsx'])));
         $maxSizeBytes = ($config['max_file_size_mb'] ?? 2) * 1024 * 1024; // Convert MB to bytes
         
         $this->addMediaCollection('images')

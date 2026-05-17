@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\Task;
 use App\Models\Project;
 use App\Models\TaskStage;
+use App\Models\TaskAttachment;
 use App\Models\ProjectMilestone;
 use App\Models\User;
 use App\Services\GoogleCalendarService;
 use App\Traits\HasPermissionChecks;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -265,7 +267,9 @@ class TaskController extends Controller
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after:start_date',
             'assigned_to' => 'nullable|exists:users,id',
-            'is_googlecalendar_sync' => 'nullable|boolean'
+            'is_googlecalendar_sync' => 'nullable|boolean',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id'
         ]);
 
         // Ensure project belongs to current workspace
@@ -279,12 +283,28 @@ class TaskController extends Controller
             ->ordered()
             ->first();
 
+        $taskPayload = collect($validated)->except('media_item_ids')->toArray();
+
         $task = Task::create([
-            ...$validated,
+            ...$taskPayload,
             'task_stage_id' => $firstStage->id,
             'created_by' => auth()->id(),
             'progress' => 0
         ]);
+
+        if (!empty($validated['media_item_ids'])) {
+            foreach ($validated['media_item_ids'] as $mediaItemId) {
+                TaskAttachment::firstOrCreate(
+                    [
+                        'task_id' => $task->id,
+                        'media_item_id' => $mediaItemId
+                    ],
+                    [
+                        'uploaded_by' => auth()->id()
+                    ]
+                );
+            }
+        }
 
         // Sync with Google Calendar if enabled
         if ($validated['is_googlecalendar_sync'] ?? false) {
@@ -329,14 +349,41 @@ class TaskController extends Controller
             'end_date' => 'nullable|date|after:start_date',
             'assigned_to' => 'nullable|exists:users,id',
             'milestone_id' => 'nullable|exists:project_milestones,id',
-            'is_googlecalendar_sync' => 'boolean'
+            'is_googlecalendar_sync' => 'boolean',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id'
         ]);
 
         // Check if assigned_to changed
         $oldAssignedTo = $task->assigned_to;
         $newAssignedTo = $validated['assigned_to'] ?? null;
 
-        $task->update($validated);
+        $taskPayload = collect($validated)->except('media_item_ids')->toArray();
+        $task->update($taskPayload);
+
+        if (isset($validated['media_item_ids'])) {
+            $incomingMediaIds = collect($validated['media_item_ids'])->filter()->unique()->values();
+
+            if ($incomingMediaIds->isNotEmpty()) {
+                $task->attachments()
+                    ->whereNotIn('media_item_id', $incomingMediaIds)
+                    ->delete();
+
+                foreach ($incomingMediaIds as $mediaItemId) {
+                    TaskAttachment::firstOrCreate(
+                        [
+                            'task_id' => $task->id,
+                            'media_item_id' => $mediaItemId
+                        ],
+                        [
+                            'uploaded_by' => auth()->id()
+                        ]
+                    );
+                }
+            } else {
+                $task->attachments()->delete();
+            }
+        }
 
         // Sync with Google Calendar if enabled
         if ($validated['is_googlecalendar_sync'] ?? false) {
@@ -400,22 +447,44 @@ class TaskController extends Controller
         if (!$workspace || $task->project->workspace_id != $workspace->id) {
             abort(403, 'Task not found in current workspace.');
         }
-        $newTask = $task->replicate();
-        $newTask->title = $task->title . ' (Copy)';
-        $newTask->start_date = null;
-        $newTask->end_date = null;
-        $newTask->progress = 0;
-        $newTask->created_by = auth()->id();
-        $newTask->save();
 
-        // Copy checklists
-        foreach ($task->checklists as $checklist) {
-            $newChecklist = $checklist->replicate();
-            $newChecklist->task_id = $newTask->id;
-            $newChecklist->is_completed = false;
-            $newChecklist->created_by = auth()->id();
-            $newChecklist->save();
-        }
+        DB::transaction(function () use ($task) {
+            $task->loadMissing(['checklists', 'attachments.mediaItem']);
+
+            $newTask = $task->replicate();
+            $newTask->title = $task->title . ' (Copy)';
+            $newTask->start_date = null;
+            $newTask->end_date = null;
+            $newTask->progress = 0;
+            $newTask->created_by = auth()->id();
+            $newTask->save();
+
+            // Copy checklists
+            foreach ($task->checklists as $checklist) {
+                $newChecklist = $checklist->replicate();
+                $newChecklist->task_id = $newTask->id;
+                $newChecklist->is_completed = false;
+                $newChecklist->created_by = auth()->id();
+                $newChecklist->save();
+            }
+
+            // Copy attachment associations for the duplicated task.
+            foreach ($task->attachments as $attachment) {
+                if (!$attachment->media_item_id || !$attachment->mediaItem) {
+                    continue;
+                }
+
+                TaskAttachment::firstOrCreate(
+                    [
+                        'task_id' => $newTask->id,
+                        'media_item_id' => $attachment->media_item_id
+                    ],
+                    [
+                        'uploaded_by' => $attachment->uploaded_by ?: auth()->id()
+                    ]
+                );
+            }
+        });
 
         return back()->with('success', __('Task duplicated successfully!'));
     }
