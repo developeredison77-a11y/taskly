@@ -16,9 +16,9 @@ class MediaItem extends Model implements HasMedia
 
     protected $fillable = ['name', 'description', 'workspace_id', 'user_id'];
     
-    protected $appends = ['url', 'thumb_url', 'mime_type'];
+    protected $appends = ['url', 'thumb_url', 'mime_type', 'size'];
     
-    protected $visible = ['id', 'name', 'description', 'workspace_id', 'user_id', 'url', 'thumb_url', 'mime_type', 'created_at', 'updated_at'];
+    protected $visible = ['id', 'name', 'description', 'workspace_id', 'user_id', 'url', 'thumb_url', 'mime_type', 'size', 'created_at', 'updated_at'];
     
     public function getUrlAttribute()
     {
@@ -36,6 +36,12 @@ class MediaItem extends Model implements HasMedia
     {
         $media = $this->getFirstMedia('images');
         return $media ? $media->getUrl('thumb') : $this->getUrlAttribute();
+    }
+
+    public function getSizeAttribute()
+    {
+        $media = $this->getFirstMedia('images');
+        return $media ? $media->size : null;
     }
     
     public function toArray()

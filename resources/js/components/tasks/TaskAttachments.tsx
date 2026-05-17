@@ -12,6 +12,20 @@ interface Props {
 }
 
 export default function TaskAttachments({ task, attachments, onUpdate, canAddAttachments = true, canManageAttachments = true }: Props) {
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
+
     const files: TaskFileItem[] = (attachments || []).map((attachment: any) => ({
         id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
         media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
@@ -22,7 +36,7 @@ export default function TaskAttachments({ task, attachments, onUpdate, canAddAtt
         preview_url: route('task-attachments.preview', attachment.id),
         download_url: route('task-attachments.download', attachment.id),
         mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
-        size: attachment.media_item?.size || attachment.mediaItem?.size || 0
+        size: getAttachmentSize(attachment)
     }));
 
     return (

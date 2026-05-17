@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\BugStatus;
 use App\Models\ProjectMilestone;
 use App\Models\User;
+use App\Models\BugAttachment;
 use App\Traits\HasPermissionChecks;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -239,13 +240,17 @@ class BugController extends Controller
             'environment' => 'nullable|string',
             'assigned_to' => 'nullable',
             'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date|after:start_date'
+            'end_date' => 'nullable|date|after:start_date',
+            'media_item_ids' => 'nullable|array',
+            'media_item_ids.*' => 'exists:media_items,id'
         ]);
 
         // Clean up assigned_to if it's 'none' or empty
         if (isset($validated['assigned_to']) && ($validated['assigned_to'] === 'none' || $validated['assigned_to'] === '')) {
             $validated['assigned_to'] = null;
         }
+        $mediaItemIds = $validated['media_item_ids'] ?? [];
+        unset($validated['media_item_ids']);
 
         // Get first status for the workspace
         $firstStatus = BugStatus::forWorkspace($user->current_workspace_id)
@@ -262,6 +267,16 @@ class BugController extends Controller
                 'bug_status_id' => $firstStatus->id,
                 'reported_by' => $user->id
             ]);
+
+            if (!empty($mediaItemIds)) {
+                foreach ($mediaItemIds as $mediaItemId) {
+                    BugAttachment::create([
+                        'bug_id' => $bug->id,
+                        'media_item_id' => $mediaItemId,
+                        'uploaded_by' => $user->id,
+                    ]);
+                }
+            }
 
             // Fire event for email notification if bug is assigned
             if ($validated['assigned_to']) {

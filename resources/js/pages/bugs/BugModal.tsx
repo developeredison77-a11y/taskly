@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Bug, MessageSquare, Paperclip, X, Send, Trash2, Edit, Download, MoreHorizontal, File, Image, FileText, Upload } from 'lucide-react';
 import { CrudDeleteModal } from '@/components/CrudDeleteModal';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import MediaPicker from '@/components/MediaPicker';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 import { useTranslation } from 'react-i18next';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -47,9 +47,23 @@ export function BugModal({ bug, projects, statuses, members, onClose, permission
     const [isDeleteCommentModalOpen, setIsDeleteCommentModalOpen] = useState(false);
     const [attachmentToDelete, setAttachmentToDelete] = useState<any>(null);
     const [isDeleteAttachmentModalOpen, setIsDeleteAttachmentModalOpen] = useState(false);
-    const [selectedMedia, setSelectedMedia] = useState('');
+    const [createFiles, setCreateFiles] = useState<TaskFileItem[]>([]);
+
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
     
-    const { data, setData, post, put, processing, errors } = useForm({
+    const { data, setData, post, put, transform, processing, errors } = useForm({
         project_id: bug?.project_id?.toString() || '',
         milestone_id: bug?.milestone_id?.toString() || 'none',
         title: bug?.title || '',
@@ -63,7 +77,8 @@ export function BugModal({ bug, projects, statuses, members, onClose, permission
         assigned_to: bug?.assigned_to?.id?.toString() || 'none',
         start_date: bug?.start_date || '',
         end_date: bug?.end_date || '',
-        resolution_notes: bug?.resolution_notes || ''
+        resolution_notes: bug?.resolution_notes || '',
+        media_item_ids: [] as number[]
     });
 
     const { data: commentData, setData: setCommentData, post: postComment, reset: resetComment } = useForm({
@@ -125,6 +140,25 @@ export function BugModal({ bug, projects, statuses, members, onClose, permission
         }
     }, [bug]);
 
+    useEffect(() => {
+        if (!bug) {
+            setData('media_item_ids', createFiles.map((file) => file.id));
+        }
+    }, [createFiles, bug]);
+
+    const mapAttachmentToTaskFile = (attachment: any): TaskFileItem => ({
+        id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        attachment_id: attachment.id,
+        name: attachment.media_item?.name || attachment.mediaItem?.name || 'file',
+        url: attachment.media_item?.url || attachment.mediaItem?.url || '',
+        thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || attachment.media_item?.url || attachment.mediaItem?.url || '',
+        preview_url: attachment.media_item?.url || attachment.mediaItem?.url || '',
+        download_url: route('bug-attachments.download', attachment.id),
+        mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+        size: getAttachmentSize(attachment)
+    });
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
@@ -136,23 +170,22 @@ export function BugModal({ bug, projects, statuses, members, onClose, permission
         };
         
         if (bug) {
+            transform(() => submitData);
             put(route('bugs.update', bug.id), {
                 onSuccess: () => onClose(),
                 onError: (errors) => {
                     console.error('Update error:', errors);
-                }
+                },
+                onFinish: () => transform((currentData) => currentData)
             });
         } else {
-            // For new bugs, we need to set the data first
-            Object.keys(submitData).forEach(key => {
-                setData(key as any, submitData[key as keyof typeof submitData]);
-            });
-            
+            transform(() => submitData);
             post(route('bugs.store'), {
                 onSuccess: () => onClose(),
                 onError: (errors) => {
                     console.error('Create error:', errors);
-                }
+                },
+                onFinish: () => transform((currentData) => currentData)
             });
         }
     };
@@ -210,7 +243,7 @@ export function BugModal({ bug, projects, statuses, members, onClose, permission
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="details">{t('Details')}</TabsTrigger>
                         <TabsTrigger value="comments" disabled={!bugData}>{t('Comments')} {bugData?.comments?.length ? `(${bugData.comments.length})` : ''}</TabsTrigger>
-                        <TabsTrigger value="attachments" disabled={!bugData}>{t('Attachments')} {bugData?.attachments?.length ? `(${bugData.attachments.length})` : ''}</TabsTrigger>
+                        <TabsTrigger value="attachments">{t('Attachments')} {((bugData?.attachments?.length || 0) + (!bug ? createFiles.length : 0)) ? `(${(bugData?.attachments?.length || 0) + (!bug ? createFiles.length : 0)})` : ''}</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="details" className="space-y-4 overflow-y-auto flex-1">
@@ -579,123 +612,48 @@ export function BugModal({ bug, projects, statuses, members, onClose, permission
                     </TabsContent>
 
                     <TabsContent value="attachments" className="flex flex-col flex-1 overflow-hidden">
-                        {bugData ? (
-                            <>
-                                <div className="flex-1 overflow-y-auto mb-4">
-                                    {bugData.attachments?.length > 0 && (
-                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                        {bugData.attachments.map((attachment: any) => {
-                                            const getFileIcon = (mimeType: string) => {
-                                                if (mimeType?.startsWith('image/')) return Image;
-                                                if (mimeType?.includes('pdf') || mimeType?.includes('document')) return FileText;
-                                                return File;
-                                            };
-                                            
-                                            const FileIcon = getFileIcon(attachment.media_item?.mime_type || '');
-                                            const isImage = attachment.media_item?.mime_type?.startsWith('image/') || 
-                                                           attachment.media_item?.name?.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i);
-                                            const imageUrl = attachment.media_item?.url || 
-                                                            (attachment.media_item?.path ? `/storage/${attachment.media_item.path}` : null);
-                                            
-                                            return (
-                                                <div key={attachment.id} className="group relative bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg hover:border-gray-300 transition-all duration-200">
-                                                    <div className="aspect-[4/3] bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center relative">
-                                                        {isImage && imageUrl ? (
-                                                            <img
-                                                                src={imageUrl}
-                                                                alt={attachment.media_item?.name || 'Attachment'}
-                                                                className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
-                                                                onError={(e) => {
-                                                                    e.currentTarget.style.display = 'none';
-                                                                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                                                                }}
-                                                                onClick={() => window.open(imageUrl, '_blank')}
-                                                            />
-                                                        ) : null}
-                                                        <div className={`${isImage && imageUrl ? 'hidden' : 'flex'} items-center justify-center w-full h-full`}>
-                                                            <FileIcon className="h-16 w-16 text-gray-400" />
-                                                        </div>
-                                                    </div>
-                                                    
-                                                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild>
-                                                                <Button variant="secondary" size="sm" className="h-8 w-8 p-0 bg-white/90 hover:bg-white shadow-sm">
-                                                                    <MoreHorizontal className="h-4 w-4" />
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end" className="z-[9999]">
-                                                                <DropdownMenuItem onClick={() => window.open(route('bug-attachments.download', attachment.id), '_blank')}>
-                                                                    <Download className="h-4 w-4 mr-2" />
-                                                                    Download
-                                                                </DropdownMenuItem>
-                                                                {attachment.can_delete && (
-                                                                    <DropdownMenuItem 
-                                                                        onClick={() => {
-                                                                            setAttachmentToDelete(attachment);
-                                                                            setIsDeleteAttachmentModalOpen(true);
-                                                                        }}
-                                                                        className="text-red-600"
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4 mr-2" />
-                                                                        Remove
-                                                                    </DropdownMenuItem>
-                                                                )}
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                    </div>
-                                                    
-                                                    <div className="p-3 bg-white border-t border-gray-100">
-                                                        <p className="text-sm font-medium text-gray-900 truncate mb-1" title={attachment.media_item?.name}>
-                                                            {attachment.media_item?.name}
-                                                        </p>
-                                                        <div className="flex items-center justify-between text-xs text-gray-500">
-                                                            <span>{attachment.media_item?.mime_type}</span>
-                                                            <span>{attachment.media_item?.size ? `${Math.round(attachment.media_item.size / 1024)}KB` : ''}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                                
-                                {bugData.attachments?.length === 0 && (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <Paperclip className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                                        <p>{t('No attachments yet')}</p>
-                                    </div>
-                                )}
-                                </div>
+                        <div className="flex-1 overflow-y-auto mb-4">
+                            <TaskFileUpload
+                                mode={bugData ? 'edit' : 'edit'}
+                                files={bugData ? (bugData.attachments || []).map(mapAttachmentToTaskFile) : createFiles}
+                                onFilesChange={(nextFiles) => {
+                                    if (!bugData) {
+                                        setCreateFiles(nextFiles);
+                                        return;
+                                    }
 
-                                <MediaPicker
-                                    label={t('Add from Media Library')}
-                                    value={selectedMedia}
-                                    onChange={(url: string, mediaIds?: number[]) => {
-                                        setSelectedMedia(url);
-                                        if (mediaIds && mediaIds.length > 0) {
-                                            router.post(route('bug-attachments.store', bugData.id), {
-                                                media_item_ids: mediaIds
-                                            }, {
-                                                onSuccess: () => {
-                                                    axios.get(route('bugs.show', bugData.id))
-                                                        .then(response => setBugData(response.data.bug))
-                                                        .catch(console.error);
-                                                    setSelectedMedia('');
-                                                }
-                                            });
+                                    const existingIds = new Set((bugData.attachments || []).map((attachment: any) => (
+                                        attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id
+                                    )));
+                                    const addedIds = nextFiles.map((file) => file.id).filter((id) => !existingIds.has(id));
+
+                                    if (addedIds.length === 0) return;
+                                    router.post(route('bug-attachments.store', bugData.id), {
+                                        media_item_ids: addedIds
+                                    }, {
+                                        onSuccess: () => {
+                                            axios.get(route('bugs.show', bugData.id))
+                                                .then(response => setBugData(response.data.bug))
+                                                .catch(console.error);
                                         }
-                                    }}
-                                    placeholder={t('Select from media library...')}
-                                    showPreview={true}
-                                />
-                            </>
-                        ) : (
-                            <div className="text-center py-8 text-gray-500">
-                                <Paperclip className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                                <p>{t('Save the bug first to add attachments')}</p>
-                            </div>
-                        )}
+                                    });
+                                }}
+                                onRemoveFile={(file) => {
+                                    if (!bugData) {
+                                        setCreateFiles((prev) => prev.filter((f) => f.id !== file.id));
+                                        return;
+                                    }
+                                    if (!file.attachment_id) return;
+                                    router.delete(route('bug-attachments.destroy', file.attachment_id), {
+                                        onSuccess: () => {
+                                            axios.get(route('bugs.show', bugData.id))
+                                                .then(response => setBugData(response.data.bug))
+                                                .catch(console.error);
+                                        }
+                                    });
+                                }}
+                            />
+                        </div>
                     </TabsContent>
                 </Tabs>
             </DialogContent>

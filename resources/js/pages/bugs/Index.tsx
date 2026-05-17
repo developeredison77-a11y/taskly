@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Bug, Filter, Search, LayoutGrid, List, AlertTriangle, Zap, Eye, Edit, Trash2, Columns3, User, GripVertical, MessageSquare, Paperclip, Copy } from 'lucide-react';
+import { Plus, Bug, Filter, Search, LayoutGrid, List, AlertTriangle, Zap, Eye, Edit, Trash2, Columns3, User, GripVertical, MessageSquare, Paperclip, Copy, FileText } from 'lucide-react';
 import { PageTemplate } from '@/components/page-template';
 import { BugModal } from './BugModal';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { hasPermission } from '@/utils/authorization';
 import { CrudDeleteModal } from '@/components/CrudDeleteModal';
 import { CrudTable } from '@/components/CrudTable';
+import TaskAttachments from '@/components/tasks/TaskAttachments';
 import { useTranslation } from 'react-i18next';
 
 interface Bug {
@@ -75,6 +76,8 @@ export default function Index({ bugs, projects, statuses, members, filters, user
     const [selectedBug, setSelectedBug] = useState<Bug | null>(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [bugToDelete, setBugToDelete] = useState<Bug | null>(null);
+    const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
+    const [filesBug, setFilesBug] = useState<any | null>(null);
 
     // Show flash messages
     useEffect(() => {
@@ -184,6 +187,18 @@ export default function Index({ bugs, projects, statuses, members, filters, user
                     setBugToDelete(null);
                 }
             });
+        }
+    };
+
+    const handleViewBugFiles = async (bugId: number) => {
+        try {
+            const response = await fetch(route('bugs.show', bugId));
+            const data = await response.json();
+            setFilesBug(data.bug);
+            setIsFilesModalOpen(true);
+        } catch (error) {
+            console.error('Failed to load bug files:', error);
+            toast.error('Failed to load bug files');
         }
     };
 
@@ -337,6 +352,9 @@ export default function Index({ bugs, projects, statuses, members, filters, user
         }
 
         switch (action) {
+            case 'files':
+                handleViewBugFiles(bug.id);
+                break;
             case 'view':
             case 'edit':
                 openBugModal(bug);
@@ -419,10 +437,27 @@ export default function Index({ bugs, projects, statuses, members, filters, user
                     <span className="text-sm text-gray-500">{t('Unassigned')}</span>
                 )
             )
+        },
+        {
+            key: 'attachments_count',
+            label: t('Files'),
+            render: (value: number, row: any) => (
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <Paperclip className="h-4 w-4 text-slate-500" />
+                    <span>{value || row.attachments_count || 0}</span>
+                </div>
+            )
         }
     ];
 
     const actions = [
+        {
+            label: t('Files'),
+            icon: 'FileText',
+            action: 'files',
+            className: 'text-slate-500 hover:text-slate-700',
+            condition: () => true
+        },
         {
             label: t('Edit'),
             icon: 'Edit',
@@ -917,10 +952,29 @@ export default function Index({ bugs, projects, statuses, members, filters, user
                                             <div>Updated: {new Date(bug.updated_at || bug.created_at).toLocaleDateString()}</div>
                                         </div>
                                     </div>
+
+                                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                                        <div className="flex items-center gap-1">
+                                            <MessageSquare className="h-3 w-3" />
+                                            <span>{bug.comments_count || 0}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Paperclip className="h-3 w-3" />
+                                            <span>{bug.attachments_count || 0}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </CardContent>
                             
                             <CardFooter className="flex justify-end gap-1 pt-0 pb-2">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={() => handleViewBugFiles(bug.id)} className="text-slate-500 hover:text-slate-700 h-8 w-8">
+                                            <FileText className="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{t('Files')}</TooltipContent>
+                                </Tooltip>
 
                                 {bugPermissions?.update && (
                                     <Tooltip>
@@ -1032,6 +1086,28 @@ export default function Index({ bugs, projects, statuses, members, filters, user
                 itemName={bugToDelete?.title || ''}
                 entityName="bug"
             />
+
+            <Dialog open={isFilesModalOpen} onOpenChange={(open) => {
+                setIsFilesModalOpen(open);
+                if (!open) setFilesBug(null);
+            }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{t('Files')} {filesBug?.title ? `- ${filesBug.title}` : ''}</DialogTitle>
+                    </DialogHeader>
+
+                    {filesBug?.attachments?.length > 0 ? (
+                        <TaskAttachments
+                            task={filesBug}
+                            attachments={filesBug.attachments}
+                            canAddAttachments={false}
+                            canManageAttachments={false}
+                        />
+                    ) : (
+                        <div className="py-10 text-center text-sm text-gray-500">{t('No files available')}</div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </PageTemplate>
     );
 }

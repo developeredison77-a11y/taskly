@@ -43,6 +43,20 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [taskFiles, setTaskFiles] = useState<TaskFileItem[]>([]);
 
+    const getAttachmentSize = (attachment: any): number => {
+        const size =
+            attachment.media_item?.size ??
+            attachment.mediaItem?.size ??
+            attachment.media_item?.file_size ??
+            attachment.mediaItem?.file_size ??
+            attachment.media_item?.filesize ??
+            attachment.mediaItem?.filesize ??
+            attachment.size ??
+            0;
+
+        return typeof size === 'number' ? size : Number(size) || 0;
+    };
+
     // Reset form when task changes
     useEffect(() => {
         if (task) {
@@ -73,7 +87,7 @@ export default function TaskFormModal({ isOpen, onClose, task, projects, members
                 preview_url: route('task-attachments.preview', attachment.id),
                 download_url: route('task-attachments.download', attachment.id),
                 mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
-                size: attachment.media_item?.size || attachment.mediaItem?.size || 0
+                size: getAttachmentSize(attachment)
             }));
             setTaskFiles(existingFiles.filter((file) => !!file.id));
         } else {
