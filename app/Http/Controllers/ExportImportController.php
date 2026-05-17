@@ -14,6 +14,7 @@ class ExportImportController extends Controller
         'companies' => \App\Exports\CompanyExport::class,
         'projects' => \App\Exports\ProjectExport::class,
         'invoices' => \App\Exports\InvoiceExport::class,
+        'tasks' => \App\Exports\TaskExport::class,
     ];
 
     protected $importClasses = [
@@ -32,6 +33,8 @@ class ExportImportController extends Controller
                 $type = 'projects';
             } elseif (str_contains($path, 'invoices/export')) {
                 $type = 'invoices';
+            } elseif (str_contains($path, 'tasks/export')) {
+                $type = 'tasks';
             } else {
                 $type = $request->route()->parameter('type');
             }
@@ -200,6 +203,10 @@ class ExportImportController extends Controller
             'invoices' => [
                 'view' => 'invoice_view_any',
                 'create' => 'invoice_create'
+            ],
+            'tasks' => [
+                'view' => 'task_view_any',
+                'create' => 'task_create'
             ]
         ];
 

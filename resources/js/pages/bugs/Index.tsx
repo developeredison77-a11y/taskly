@@ -437,16 +437,6 @@ export default function Index({ bugs, projects, statuses, members, filters, user
                     <span className="text-sm text-gray-500">{t('Unassigned')}</span>
                 )
             )
-        },
-        {
-            key: 'attachments_count',
-            label: t('Files'),
-            render: (value: number, row: any) => (
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <Paperclip className="h-4 w-4 text-slate-500" />
-                    <span>{value || row.attachments_count || 0}</span>
-                </div>
-            )
         }
     ];
 

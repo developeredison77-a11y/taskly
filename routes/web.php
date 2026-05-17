@@ -631,6 +631,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/invoices/export', [App\Http\Controllers\ExportImportController::class, 'export'])
             ->name('invoices.export')
             ->middleware('permission:invoice_view_any');
+        Route::get('/tasks/export', [App\Http\Controllers\ExportImportController::class, 'export'])
+            ->name('tasks.export')
+            ->middleware('permission:task_view_any');
         Route::post('/invoices/import', [App\Http\Controllers\ExportImportController::class, 'import'])
             ->name('invoices.import')
             ->middleware('permission:invoice_create');

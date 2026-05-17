@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, Copy, Trash2, LayoutGrid, List, User as UserIcon, CheckSquare, Columns, AlertTriangle, FileText } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Eye, Edit, Copy, Trash2, LayoutGrid, List, User as UserIcon, CheckSquare, Columns, AlertTriangle, FileText, Download } from 'lucide-react';
 import { PageTemplate } from '@/components/page-template';
 import { CrudDeleteModal } from '@/components/CrudDeleteModal';
 import { Task, Project, TaskStage, User, PaginatedData } from '@/types';
@@ -259,6 +259,41 @@ export default function TasksIndex({ tasks, projects, stages, members, filters, 
     };
 
     const pageActions = [];
+
+    if (userWorkspaceRole !== 'client') {
+        pageActions.push({
+            label: t('Export'),
+            icon: <Download className="h-4 w-4 mr-2" />,
+            variant: 'outline',
+            onClick: async () => {
+                try {
+                    const params = new URLSearchParams();
+                    if (searchTerm) params.append('search', searchTerm);
+                    if (selectedProject !== 'all') params.append('project_id', selectedProject);
+                    if (selectedStage !== 'all') params.append('stage_id', selectedStage);
+                    if (selectedPriority !== 'all') params.append('priority', selectedPriority);
+                    if (selectedAssignee !== 'all') params.append('assigned_to', selectedAssignee);
+                    if (project_name) params.append('project_name', project_name);
+
+                    const response = await fetch(route('tasks.export', params));
+                    if (!response.ok) throw new Error('Export failed');
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `tasks_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    toast.success(t('Export completed successfully'));
+                } catch (error) {
+                    toast.error(t('Export failed'));
+                }
+            }
+        });
+    }
 
     // Only show Create Task button for non-clients
     if (userWorkspaceRole !== 'client') {
