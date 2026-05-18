@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { PageTemplate } from '@/components/page-template';
+import TaskFileUpload, { TaskFileItem } from '@/components/tasks/TaskFileUpload';
 import { useTranslation } from 'react-i18next';
 import { Copy, FileText, MessageSquare, Paperclip, User, Calendar, DollarSign, Plus, Pin, Trash2, Eye, Upload, Search, Clock, CheckCircle, AlertTriangle, PenTool, Send, Download, Edit, ArrowLeft } from 'lucide-react';
 
@@ -70,8 +70,8 @@ export default function ContractShow() {
     const [signaturePad, setSignaturePad] = useState<any>(null);
     const [scriptLoaded, setScriptLoaded] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+    const [selectedUploadFiles, setSelectedUploadFiles] = useState<TaskFileItem[]>([]);
+    const [isAttachingUploadedFiles, setIsAttachingUploadedFiles] = useState(false);
     const [searchNotes, setSearchNotes] = useState('');
     const [searchComments, setSearchComments] = useState('');
     const [searchAttachments, setSearchAttachments] = useState('');
@@ -251,11 +251,18 @@ export default function ContractShow() {
         attachment.url ||
         (attachment.files ? `/storage/media/${attachment.files}` : '');
 
-    const isImageAttachment = (attachment: any) => {
-        const mime = (attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '').toLowerCase();
-        if (mime.startsWith('image/')) return true;
-        return getAttachmentName(attachment).match(/\.(jpg|jpeg|png|gif|webp)$/i);
-    };
+    const attachmentToTaskFile = (attachment: any): TaskFileItem => ({
+        id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id || attachment.id,
+        media_id: attachment.media_item?.id || attachment.mediaItem?.id || attachment.media_item_id,
+        attachment_id: attachment.id,
+        name: getAttachmentName(attachment),
+        url: getAttachmentUrl(attachment),
+        thumb_url: attachment.media_item?.thumb_url || attachment.mediaItem?.thumb_url || getAttachmentUrl(attachment),
+        preview_url: route('contract-attachments.preview', attachment.id),
+        download_url: route('contract-attachments.download', attachment.id),
+        mime_type: attachment.media_item?.mime_type || attachment.mediaItem?.mime_type || '',
+        size: attachment.media_item?.size || attachment.mediaItem?.size || attachment.size || 0
+    });
 
     const handleSignature = () => {
         if (!scriptLoaded) {
@@ -704,76 +711,31 @@ export default function ContractShow() {
                                             </Select>
                                         </>
                                     )}
-                                    {auth?.permissions?.includes('contract_attachment_create') && (
-                                    <Button size="sm" onClick={() => setIsUploadModalOpen(true)}>
-                                        <Upload className="h-4 w-4 mr-2" />
-                                        Upload Files
-                                    </Button>
+                                    {auth?.permissions?.includes('contract_attachment_create') && getFilteredAttachments().items.length > 0 && (
+                                        <div className="flex items-center">
+                                            <Button size="sm" onClick={() => setIsUploadModalOpen(true)}>
+                                                <Upload className="h-4 w-4 mr-2" />
+                                                Add Attachment
+                                            </Button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
                             {getFilteredAttachments().items.length > 0 ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                                    {getFilteredAttachments().items.map((attachment: any) => (
-                                        <Card key={attachment.id} className="group hover:shadow-lg transition-all duration-200 border-0 shadow-md hover:scale-[1.02] bg-gradient-to-br from-white to-gray-50">
-                                            <CardContent className="p-0">
-                                                <div className="relative overflow-hidden rounded-t-lg">
-                                                    {isImageAttachment(attachment) ? (
-                                                        <div className="relative">
-                                                            <img
-                                                                src={getAttachmentUrl(attachment)}
-                                                                alt={getAttachmentName(attachment)}
-                                                                className="w-full h-24 object-cover transition-transform duration-200 group-hover:scale-105"
-                                                                onError={(e) => {
-                                                                    e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik04NyA2NUw5MyA3MUwxMDcgNTdMMTIzIDczVjEwNUg3N1Y2NUg4N1oiIGZpbGw9IiM5Q0EzQUYiLz4KPGNpcmNsZSBjeD0iOTEiIGN5PSI1NyIgcj0iNCIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
-                                                                }}
-                                                            />
-                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                                                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                                {auth?.permissions?.includes('contract_attachment_download') && (
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button variant="secondary" size="icon" className="h-8 w-8 bg-blue-500/90 hover:bg-blue-600 shadow-md" onClick={() => {
-                                                                            window.location.href = route('contract-attachments.download', attachment.id);
-                                                                        }}>
-                                                                            <Download className="h-4 w-4 text-white" />
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>Download</TooltipContent>
-                                                                </Tooltip>
-                                                                )}
-                                                                {auth?.permissions?.includes('contract_attachment_delete') && (
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <Button variant="secondary" size="icon" className="h-8 w-8 bg-red-500/90 hover:bg-red-600 shadow-md" onClick={() => router.delete(route('contract-attachments.destroy', attachment.id), {
-                                                                            onSuccess: () => toast.success('Attachment deleted successfully')
-                                                                        })}>
-                                                                            <Trash2 className="h-4 w-4 text-white" />
-                                                                        </Button>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>Delete</TooltipContent>
-                                                                </Tooltip>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="w-full h-24 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                                                            <Paperclip className="h-6 w-6 text-gray-400" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="p-2">
-                                                    <h4 className="font-medium text-xs text-gray-900 truncate mb-1" title={getAttachmentName(attachment)}>
-                                                        {getAttachmentName(attachment)}
-                                                    </h4>
-                                                    <div className="text-xs text-gray-500">
-                                                        {new Date(attachment.created_at).toLocaleString()}
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                                </div>
+                                <TaskFileUpload
+                                    mode={auth?.permissions?.includes('contract_attachment_delete') ? 'edit' : 'view'}
+                                    files={getFilteredAttachments().items.map(attachmentToTaskFile)}
+                                    showFileList
+                                    showFileHeader={false}
+                                    showEmptyState={false}
+                                    showUploadArea={false}
+                                    onRemoveFile={(file) => {
+                                        if (!file.attachment_id) return;
+                                        router.delete(route('contract-attachments.destroy', file.attachment_id), {
+                                            onSuccess: () => toast.success('Attachment deleted successfully')
+                                        });
+                                    }}
+                                />
                             ) : (
                                 <div className="text-center py-16">
                                     <Paperclip className="h-10 w-10 text-primary mx-auto mb-4" />
@@ -1110,91 +1072,66 @@ export default function ContractShow() {
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-6">
-                        <div
-                            className="relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 border-gray-300 hover:border-gray-400 hover:bg-gray-50"
-                        >
-                            <div>
-                                <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                                    <Upload className="h-8 w-8 text-gray-400" />
-                                </div>
-                                <h3 className="text-lg font-medium mb-2">
-                                    {t('Upload your files')}
-                                </h3>
-                                <p className="text-sm text-muted-foreground mb-6">
-                                    {t('Drag and drop your files here, or click to browse')}
-                                </p>
+                        <TaskFileUpload
+                            mode="edit"
+                            files={selectedUploadFiles}
+                            onFilesChange={setSelectedUploadFiles}
+                            showFileList={false}
+                        />
 
-                                <Input
-                                    type="file"
-                                    multiple
-                                    onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-                                    className="hidden"
-                                    id="file-upload-contract"
-                                />
+                        <div className="flex gap-2 justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setIsUploadModalOpen(false);
+                                    setSelectedUploadFiles([]);
+                                }}
+                                disabled={isAttachingUploadedFiles}
+                            >
+                                {t('Cancel')}
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    const mediaItemIds = selectedUploadFiles
+                                        .map((file) => file.media_id || file.id)
+                                        .filter((id): id is number => !!id);
 
-                                <Button
-                                    type="button"
-                                    onClick={() => document.getElementById('file-upload-contract')?.click()}
-                                    disabled={isUploadingAttachment}
-                                    size="lg"
-                                >
-                                    {isUploadingAttachment ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            {t('Uploading...')}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Plus className="h-4 w-4 mr-2" />
-                                            {t('Choose Files')}
-                                        </>
-                                    )}
-                                </Button>
+                                    if (mediaItemIds.length === 0) {
+                                        toast.error(t('Please select files to upload...'));
+                                        return;
+                                    }
 
-                                {selectedFiles.length > 0 && (
-                                    <div className="mt-4 text-sm text-gray-600">
-                                        {selectedFiles.length} file(s) selected
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {selectedFiles.length > 0 && (
-                            <div className="flex gap-2 justify-end">
-                                <Button variant="outline" onClick={() => { setIsUploadModalOpen(false); setSelectedFiles([]); }} disabled={isUploadingAttachment}>
-                                    {t('Cancel')}
-                                </Button>
-                                <Button onClick={() => {
-                                    setIsUploadingAttachment(true);
-                                    const formData = new FormData();
-                                    selectedFiles.forEach(file => formData.append('files[]', file));
-                                    router.post(route('contract-attachments.store', contract.id), formData, {
+                                    setIsAttachingUploadedFiles(true);
+                                    router.post(route('contract-attachments.store', contract.id), {
+                                        media_item_ids: mediaItemIds
+                                    }, {
                                         onSuccess: () => {
                                             setIsUploadModalOpen(false);
-                                            setSelectedFiles([]);
-                                            setIsUploadingAttachment(false);
+                                            setSelectedUploadFiles([]);
+                                            setIsAttachingUploadedFiles(false);
                                             toast.success('Attachments uploaded successfully');
                                         },
                                         onError: (errors) => {
-                                            setIsUploadingAttachment(false);
+                                            setIsAttachingUploadedFiles(false);
                                             toast.error(`Failed: ${Object.values(errors).join(', ')}`);
                                         }
                                     });
-                                }} disabled={isUploadingAttachment}>
-                                    {isUploadingAttachment ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            {t('Uploading...')}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Upload className="h-4 w-4 mr-2" />
-                                            {t('Upload Files')}
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
-                        )}
+                                }}
+                                disabled={isAttachingUploadedFiles || selectedUploadFiles.length === 0}
+                            >
+                                {isAttachingUploadedFiles ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                        {t('Uploading...')}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Upload className="h-4 w-4 mr-2" />
+                                        {t('Upload Files')}
+                                    </>
+                                )}
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

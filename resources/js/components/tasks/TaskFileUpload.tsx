@@ -53,6 +53,9 @@ interface TaskFileUploadProps {
     maxFileSizeMB?: number;
     maxFiles?: number;
     showFileList?: boolean;
+    showFileHeader?: boolean;
+    showEmptyState?: boolean;
+    showUploadArea?: boolean;
 }
 
 const DEFAULT_ALLOWED_EXTENSIONS = [
@@ -76,7 +79,10 @@ export default function TaskFileUpload({
     allowedExtensions = DEFAULT_ALLOWED_EXTENSIONS,
     maxFileSizeMB = 10,
     maxFiles = 25,
-    showFileList = true
+    showFileList = true,
+    showFileHeader = true,
+    showEmptyState = true,
+    showUploadArea = true
 }: TaskFileUploadProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragOver, setDragOver] = useState(false);
@@ -238,7 +244,7 @@ export default function TaskFileUpload({
 
     return (
         <div className="space-y-4">
-            {!isReadOnly && (
+            {!isReadOnly && showUploadArea && (
                 <Card
                     className={`border-2 border-dashed transition-colors ${dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
                     onDragOver={(e) => {
@@ -275,13 +281,17 @@ export default function TaskFileUpload({
 
             {showFileList && (
                 <>
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Files</h3>
-                        <Badge variant="outline">{totalCount}</Badge>
-                    </div>
+                    {showFileHeader && (
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-medium">Files</h3>
+                            <Badge variant="outline">{totalCount}</Badge>
+                        </div>
+                    )}
 
                     {normalizedFiles.length === 0 ? (
-                        <div className="text-center text-sm text-gray-500 py-8 border rounded-lg">No files uploaded</div>
+                        showEmptyState ? (
+                            <div className="text-center text-sm text-gray-500 py-8 border rounded-lg">No files uploaded</div>
+                        ) : null
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {normalizedFiles.map((file) => {
